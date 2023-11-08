@@ -1,6 +1,13 @@
+# bison generate
+location.hh
+parser.tab.hpp
+parser.tab.cpp
+lexer.yy.cc
+
 .DS_Store
 .vscode
 build/
 *.o
 *.out
 *.swp
+
