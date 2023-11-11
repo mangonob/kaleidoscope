@@ -1,8 +1,10 @@
-# bison generate
+# bison generates files
 location.hh
 parser.tab.hpp
 parser.tab.cpp
+# flex generates files
 lexer.yy.cc
+lexer.yy.hh
 
 .DS_Store
 .vscode
