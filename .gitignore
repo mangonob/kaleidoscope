@@ -7,7 +7,7 @@ lexer.yy.cc
 lexer.yy.hh
 
 .DS_Store
-.vscode
+.vscode/
 build/
 *.o
 *.out
