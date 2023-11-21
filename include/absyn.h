@@ -422,7 +422,7 @@ namespace absyn
   struct Printer : Visitor
   {
     int depth;
-    bool isInline;
+    std::vector<bool> inline_stack;
     std::string indent = "  ";
     std::ostream &out;
 
@@ -457,6 +457,9 @@ namespace absyn
     void visit(FunctionDec &funcDec) override;
 
   protected:
+    bool isInline();
+    void pushInline(bool isInline);
+    bool popInline();
     void printIndent();
     void changeLineOrSeparate(std::string sep);
 

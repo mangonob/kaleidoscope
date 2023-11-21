@@ -327,7 +327,7 @@ void Let::accept(Visitor &v)
 Printer::Printer(std::ostream &out, int depth, bool isInline) : out(out)
 {
     this->depth = depth;
-    this->isInline = isInline;
+    this->inline_stack.push_back(isInline);
 }
 
 void Printer::visit(Nil &n)
@@ -630,9 +630,14 @@ void Printer::visit(FunctionDec &funcDec)
     this->depth--;
 }
 
+bool Printer::isInline()
+{
+    return this->inline_stack.back();
+}
+
 void Printer::printIndent()
 {
-    if (isInline || depth == 0)
+    if (isInline() || depth == 0)
         return;
 
     for (int i = 0; i < depth; ++i)
@@ -641,9 +646,21 @@ void Printer::printIndent()
     }
 }
 
+void Printer::pushInline(bool isInline)
+{
+    this->inline_stack.push_back(isInline);
+}
+
+bool Printer::popInline()
+{
+    auto top = this->inline_stack.back();
+    this->inline_stack.pop_back();
+    return top;
+}
+
 void Printer::changeLineOrSeparate(std::string sep)
 {
-    if (isInline)
+    if (isInline())
     {
         this->out << sep;
     }

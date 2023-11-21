@@ -1,0 +1,39 @@
+let
+  var a1: int := 41
+  var a2: int := 42
+  var a3: int := 43
+  var a4: int := 44
+  var a5: int := 45
+  var a6: int := 45
+  var a7: int := 47
+  var a8: int := 48
+  var a9: int := 49
+  var a10: int := 50
+  var a11: int := 51
+  var a12: int := 52
+  var a13: int := 53
+  var a14: int := 54
+  var a15: int := 55
+  var a16: int := 56
+  var a17: int := 57
+  var a18: int := 58
+  var a19: int := 59
+  var a20: int := 60
+  var a21: int := 61
+  var a22: int := 62
+  var a23: int := 63
+  var a24: int := 64
+  var a25: int := 65
+  var a26: int := 66
+  var a27: int := 67
+  var a28: int := 68
+  var a29: int := 69
+  var a30: int := 70
+  var a31: int := 71
+  var a32: int := 72
+  var a33: int := 73
+  var a34: int := 74
+  var a35: int := 75
+in
+  a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12 + a13 + a14 + a15 + a16 + a17 + a18 + a19 + a20 + a21 + a22 + a23 + a24 + a25 + a26 + a27 + a28 + a29 + a30 + a31 + a32 + a33 + a34 + a35
+end
