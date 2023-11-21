@@ -14,6 +14,8 @@ find_package(LLVM REQUIRED CONFIG)
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 
+find_package(nlohmann_json REQUIRED)
+
 add_executable(kalec ${SOURCE_FILES}
   ${SRC}/parser.tab.cpp
   ${SRC}/lexer.yy.cc
@@ -26,7 +28,10 @@ target_include_directories(kalec PUBLIC ${INCLUDE})
 llvm_map_components_to_libnames(llvm_libs support core irreader)
 
 # Link against LLVM libraries
-target_link_libraries(kalec ${llvm_libs})
+target_link_libraries(kalec PRIVATE
+  ${llvm_libs}
+  nlohmann_json::nlohmann_json
+)
 
 exec_program(brew ARGS --prefix bison OUTPUT_VARIABLE BISON)
 

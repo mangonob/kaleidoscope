@@ -1,4 +1,5 @@
 #include <memory>
+#include <regex>
 #include "absyn.h"
 #include "utils.h"
 
@@ -6,6 +7,22 @@ using namespace std;
 using namespace absyn;
 
 ID::ID(std::string id, position pos) : id(id), pos(pos) {}
+
+static string escape(string s)
+{
+    string res = s;
+    res = regex_replace(res, regex("\a"), "\\a");
+    res = regex_replace(res, regex("\b"), "\\b");
+    res = regex_replace(res, regex("\f"), "\\f");
+    res = regex_replace(res, regex("\n"), "\\n");
+    res = regex_replace(res, regex("\r"), "\\r");
+    res = regex_replace(res, regex("\t"), "\\t");
+    res = regex_replace(res, regex("\v"), "\\v");
+    res = regex_replace(res, regex("\\\\"), "\\\\");
+    res = regex_replace(res, regex("\'"), "\\\'");
+    res = regex_replace(res, regex("\""), "\\\"");
+    return res;
+}
 
 void ID::accept(Visitor &visitor)
 {
@@ -324,29 +341,21 @@ void Let::accept(Visitor &v)
 
 /// Implementations of Printer
 
-Printer::Printer(std::ostream &out, int depth, bool isInline) : out(out)
-{
-    this->depth = depth;
-    this->inline_stack.push_back(isInline);
-}
+Printer::Printer(std::ostream &out) : out(out) {}
 
 void Printer::visit(Nil &n)
 {
-    this->out << "Nil";
+    this->out << "null";
 }
 
 void Printer::visit(Int &i)
 {
-    this->out << "Int<";
     this->out << i.value;
-    this->out << ">";
 }
 
 void Printer::visit(String &s)
 {
-    this->out << "String<";
-    this->out << s.value;
-    this->out << ">";
+    this->out << "\"" << escape(s.value) << "\"";
 }
 
 void Printer::visit(VarExp &var)
@@ -356,39 +365,46 @@ void Printer::visit(VarExp &var)
 
 void Printer::visit(Assign &assign)
 {
-    this->out << "Assign<";
+    this->out << "{\"type\":\"Assign\",\"var\":";
     assign.var->accept(*this);
-    this->out << ", ";
+    this->out << ",\"exp\":";
     assign.exp->accept(*this);
-    this->out << ">";
+    this->out << "}";
 }
 
 void Printer::visit(Seq &seq)
 {
+    this->out << "[";
     for (auto iter = seq.seq.begin(); iter != seq.seq.end(); ++iter)
     {
-        this->depth++;
         (*iter)->accept(*this);
-        this->depth--;
         if (iter != seq.seq.end() - 1)
-            this->out << endl;
+            this->out << ", ";
     }
+    this->out << "]";
 }
 
 void Printer::visit(Call &call)
 {
-    this->out << "Call<";
+    this->out << "{\"type\":\"Call\",\"func\":";
     call.func->accept(*this);
-    for (auto iter = call.args.begin(); iter != call.args.end(); ++iter)
+    if (!call.args.empty())
     {
-        this->out << ", ";
-        (*iter)->accept(*this);
+        this->out << ",\"args\":[";
+        for (auto iter = call.args.begin(); iter != call.args.end(); ++iter)
+        {
+            (*iter)->accept(*this);
+            if (iter != call.args.end() - 1)
+                this->out << ", ";
+        }
+        this->out << "]";
     }
-    this->out << ">";
+    this->out << "}";
 }
 
 void Printer::visit(BinOp &bin)
 {
+    this->out << "{\"type\":\"BinOp\",\"op\":\"";
     switch (bin.op)
     {
     case plusOp:
@@ -422,250 +438,214 @@ void Printer::visit(BinOp &bin)
         this->out << "GE";
         break;
     }
-
-    this->out << "<";
+    this->out << "\",\"lhs\":";
     bin.lhs->accept(*this);
-    this->out << ", ";
+    this->out << ",\"rhs\":";
     bin.rhs->accept(*this);
-    this->out << ">";
+    this->out << "}";
 }
 
 void Printer::visit(RecordExp &record)
 {
-    this->out << "RecordExp<";
+    this->out << "{\"type\":\"RecordExp\",\"type_id\":";
     record.type_id->accept(*this);
-    for (auto rcd : record.records)
+    if (!record.records.empty())
     {
-        this->out << ",";
-        rcd->accept(*this);
+        this->out << ",\"records\":[";
+        for (auto iter = record.records.begin(); iter != record.records.end(); ++iter)
+        {
+            (*iter)->accept(*this);
+            if (iter != record.records.end() - 1)
+                this->out << ",";
+        }
+        this->out << "]";
     }
-    this->out << ">";
+    this->out << "}";
 }
 
 void Printer::visit(Array &array)
 {
-    this->out << "Array<";
+    this->out << "{\"type\":\"Array\",\"capacity\":";
     array.capacity->accept(*this);
-    this->out << ", ";
+    this->out << ",\"element\":";
     array.element->accept(*this);
-    this->out << ">";
+    this->out << "}";
 }
 
 void Printer::visit(If &iff)
 {
-    this->out << "If<";
+    this->out << "{\"type\":\"If\",\"condition\":";
     iff.condition->accept(*this);
-    this->out << ", ";
+    this->out << ",\"then\":";
     iff.then->accept(*this);
     if (iff.els)
     {
-        this->out << ", ";
+        this->out << ",\"else\":";
         iff.els->accept(*this);
     }
-    this->out << ">";
+    this->out << "}";
 }
 
 void Printer::visit(While &whil)
 {
-    this->out << "While<";
+    this->out << "{\"type\":\"While\",\"condition\":";
     whil.condition->accept(*this);
-    this->out << ", ";
+    this->out << ",\"body\":";
     whil.body->accept(*this);
-    this->out << ">";
+    this->out << "}";
 }
 
 void Printer::visit(For &forr)
 {
-    this->out << "For<";
+    this->out << "{\"type\":\"For\",\"var\":";
     forr.var->accept(*this);
-    this->out << ",";
+    this->out << ",\"from\":";
     forr.from->accept(*this);
-    this->out << ",";
+    this->out << ",\"to\":";
     forr.to->accept(*this);
-    this->out << ">" << endl;
-    this->depth++;
+    this->out << ",\"body\":";
     forr.body->accept(*this);
-    this->depth--;
+    this->out << "}";
 }
 
 void Printer::visit(Break &brk)
 {
-    this->out << "Break";
+    this->out << "{\"type\":\"Break\"}" << endl;
 }
 
 void Printer::visit(Let &let)
 {
-    printIndent();
-    this->out << "Let" << endl;
-    for (auto dec : let.decs)
+    this->out << "{\"type\":\"Let\"";
+    if (!let.decs.empty())
     {
-        this->depth++;
-        printIndent();
-        dec->accept(*this);
-        this->depth--;
-        this->out << endl;
+        this->out << ",\"decs\":[";
+        for (auto iter = let.decs.begin(); iter != let.decs.end(); ++iter)
+        {
+            (*iter)->accept(*this);
+            if (iter != let.decs.end() - 1)
+                this->out << ",";
+        }
+        this->out << "]";
     }
-    printIndent();
-    this->out << "IN" << endl;
-    this->depth++;
+    this->out << ",\"body\":";
     let.body->accept(*this);
-    this->depth--;
-    this->out << endl;
-    printIndent();
-    this->out << "END";
+    this->out << "}";
 }
 
 void Printer::visit(SimpleVar &var)
 {
-    this->out << "Var<";
+    this->out << "{\"type\":\"simpleVar\",\"name\":";
     var.name->accept(*this);
-    this->out << ">";
+    this->out << "}";
 }
 
 void Printer::visit(FieldVar &field)
 {
-    this->out << "Field<";
+    this->out << "{\"type\":\"FieldVar\",\"var\":";
     field.var->accept(*this);
-    this->out << ", ";
+    this->out << ",\"field\":";
     field.field->accept(*this);
-    this->out << ">";
+    this->out << "}";
 }
 
 void Printer::visit(SubscriptVar &subscript)
 {
-    this->out << "Subscript<";
+    this->out << "{\"type\":\"SubscriptVar\",\"var\":";
     subscript.var->accept(*this);
-    this->out << ", ";
+    this->out << ",\"subscript\":";
     subscript.subscript->accept(*this);
-    this->out << ">";
+    this->out << "}";
 }
 
 void Printer::visit(ID &id)
 {
-    this->out << id.id;
+    this->out << "\"" << id.id << "\"";
 }
 
 void Printer::visit(Record &record)
 {
-    this->out << "Record<";
+    this->out << "{\"type\":\"Record\",\"name\":";
     record.name->accept(*this);
-    this->out << ",";
+    this->out << ",\"value\":";
     record.value->accept(*this);
-    this->out << ">";
+    this->out << "}";
 }
 
 void Printer::visit(Field &field)
 {
-    this->out << "Field: ";
+    this->out << "{\"type\":\"Field\",\"name\":";
     field.name->accept(*this);
-    this->out << "<";
+    this->out << ",\"type_id\":";
     field.type_id->accept(*this);
-    this->out << ">";
+    this->out << "}";
 }
 
 void Printer::visit(NamedType &named)
 {
-    this->out << "<";
+    this->out << "{\"type\":\"NamedType\",\"named\":";
     named.named->accept(*this);
-    this->out << ">";
+    this->out << "}";
 }
 
 void Printer::visit(ArrayType &arrayType)
 {
-    this->out << "Array<";
+    this->out << "{\"type\":\"ArrayType\",\"array\":";
     arrayType.array->accept(*this);
-    this->out << "Array>";
+    this->out << "}";
 }
 
 void Printer::visit(RecordType &recordType)
 {
-    this->out << "Record<";
-    for (auto field : recordType.fields)
+    this->out << "{\"type\":\"RecordType\",\"fields\":[";
+    for (auto iter = recordType.fields.begin(); iter != recordType.fields.end(); ++iter)
     {
-        field->accept(*this);
+        (*iter)->accept(*this);
+        if (iter != recordType.fields.end() - 1)
+            this->out << ",";
     }
-    this->out << ">";
+    this->out << "]}";
 }
 
 void Printer::visit(TypeDec &typeDec)
 {
-    this->out << "@Type<";
+    this->out << "{\"type\":\"TypeDec\",\"type_id\":";
     typeDec.type_id->accept(*this);
-    this->out << ", ";
+    this->out << ",\"type\":";
     typeDec.type->accept(*this);
-    this->out << ">";
+    this->out << "}";
 }
 
 void Printer::visit(VarDec &varDec)
 {
-    this->out << "@Var<";
+    this->out << "{\"type\":\"VarDec\",\"var\":";
     varDec.var->accept(*this);
     if (varDec.type_id)
     {
-        this->out << ", ";
+        this->out << ",\"type_id\":";
         varDec.type_id->accept(*this);
     }
-    this->out << ", ";
+    this->out << ",\"exp\":";
     varDec.exp->accept(*this);
-    this->out << ">";
+    this->out << "}";
 }
 
 void Printer::visit(FunctionDec &funcDec)
 {
-    this->out << "@Function<";
+    this->out << "{\"type\":\"FunctionDec\",\"funcname\":";
     funcDec.funcname->accept(*this);
     if (funcDec.return_type)
     {
-        this->out << ":";
+        this->out << ",\"return_type\":";
         funcDec.return_type->accept(*this);
     }
-    for (auto param : funcDec.parameters)
+    this->out << ",\"parameters\":[";
+    for (auto iter = funcDec.parameters.begin(); iter != funcDec.parameters.end(); ++iter)
     {
-        this->out << ", ";
-        param->accept(*this);
+        (*iter)->accept(*this);
+        if (iter != funcDec.parameters.end() - 1)
+            this->out << ",";
     }
-    this->out << ">" << endl;
-    this->depth++;
+    this->out << "],\"body\":";
     funcDec.body->accept(*this);
-    this->depth--;
-}
-
-bool Printer::isInline()
-{
-    return this->inline_stack.back();
-}
-
-void Printer::printIndent()
-{
-    if (isInline() || depth == 0)
-        return;
-
-    for (int i = 0; i < depth; ++i)
-    {
-        this->out << indent;
-    }
-}
-
-void Printer::pushInline(bool isInline)
-{
-    this->inline_stack.push_back(isInline);
-}
-
-bool Printer::popInline()
-{
-    auto top = this->inline_stack.back();
-    this->inline_stack.pop_back();
-    return top;
-}
-
-void Printer::changeLineOrSeparate(std::string sep)
-{
-    if (isInline())
-    {
-        this->out << sep;
-    }
-    else
-    {
-        this->out << endl;
-    }
+    this->out << "}";
 }

@@ -1,11 +1,14 @@
 #include <iostream>
 #include <memory>
+#include <sstream>
+#include <nlohmann/json.hpp>
 #include "parser.tab.hpp"
 #include "TigerLexer.h"
 #include "absyn.h"
 
 using namespace std;
 using namespace absyn;
+using nlohmann::ordered_json;
 
 int main(int argc, char *argv[])
 {
@@ -16,9 +19,11 @@ int main(int argc, char *argv[])
   if (y.parse() == 0)
   {
     auto result = value.as<std::shared_ptr<Exp>>();
-    Printer p(cout);
+    ostringstream o;
+    Printer p(o);
     result->accept(p);
-    p.out << endl;
+    auto j = ordered_json::parse(o.str());
+    cout << setw(2) << j << endl;
   }
 
   exit(0);
