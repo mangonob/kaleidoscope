@@ -34,7 +34,7 @@ ID          [a-zA-Z_][a-zA-Z0-9_]*
                                 std::string str = s;
                                 s.clear();
                                 yy_pop_state();
-                                return y::make_STR(str, loc);
+                                return y::make_STRING(str, loc);
                             }
 <STR>\\a                    { s.append("\a"); }
 <STR>\\b                    { s.append("\b"); }

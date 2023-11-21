@@ -1,5 +1,4 @@
 #include <iostream>
-#include <utility>
 #include <memory>
 #include "parser.tab.hpp"
 #include "TigerLexer.h"
@@ -16,8 +15,10 @@ int main(int argc, char *argv[])
 
   if (y.parse() == 0)
   {
-    auto result = shared_ptr<Exp>(value.as<Exp *>());
-    result->print(cout, 0, false);
+    auto result = value.as<std::shared_ptr<Exp>>();
+    Printer p(cout);
+    result->accept(p);
+    p.out << endl;
   }
 
   exit(0);

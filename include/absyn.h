@@ -6,156 +6,184 @@
 
 namespace absyn
 {
+  template <typename T>
+  using ptr = std::shared_ptr<T>;
+
+  template <typename T>
+  using ptrs = std::vector<std::shared_ptr<T>>;
+
+  using position = yy::position;
+
+  struct Visitor;
   struct Exp;
 
   struct ID
   {
     std::string id;
-    yy::position pos;
+    position pos;
 
-    ID(std::string id, yy::position pos);
+    ID(std::string id, position pos);
 
-    virtual std::ostream &print(std::ostream &o, int depth, bool isInline);
+    virtual void accept(Visitor &visitor);
   };
 
   struct Record
   {
-    std::shared_ptr<ID> name;
-    std::shared_ptr<Exp> value;
-    yy::position pos;
+    ptr<ID> name;
+    ptr<Exp> value;
+    position pos;
 
     Record(
-        ID *name,
-        Exp *value,
-        yy::position pos);
+        ptr<ID> name,
+        ptr<Exp> value,
+        position pos);
+
+    virtual void accept(Visitor &visitor);
   };
 
   struct Var
   {
-    yy::position pos;
+    position pos;
 
-    Var(yy::position pos);
+    Var(position pos);
 
-    virtual std::ostream &print(std::ostream &o, int depth, bool isInline);
+    friend Visitor;
+    virtual void accept(Visitor &visitor) = 0;
   };
 
   struct SimpleVar : Var
   {
-    std::shared_ptr<ID> name;
+    ptr<ID> name;
 
-    SimpleVar(ID *name, yy::position pos);
+    SimpleVar(ptr<ID> name, position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   struct FieldVar : Var
   {
-    std::shared_ptr<Var> var;
-    std::shared_ptr<ID> field;
+    ptr<Var> var;
+    ptr<ID> field;
 
-    FieldVar(Var *var, ID *field, yy::position pos);
+    FieldVar(ptr<Var> var, ptr<ID> field, position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   struct SubscriptVar : Var
   {
-    std::shared_ptr<Var> var;
-    std::shared_ptr<Exp> subscript;
+    ptr<Var> var;
+    ptr<Exp> subscript;
 
-    SubscriptVar(Var *var, Exp *subscript);
+    SubscriptVar(ptr<Var> var, ptr<Exp> subscript, position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   struct Field
   {
-    std::shared_ptr<ID> name;
-    std::shared_ptr<ID> type_id;
-    yy::position pos;
-    bool escape;
+    ptr<ID> name;
+    ptr<ID> type_id;
+    position pos;
+    bool escape = false;
 
     Field(
-        ID *name,
-        ID *type_id,
-        yy::position pos,
-        bool escape);
+        ptr<ID> name,
+        ptr<ID> type_id,
+        position pos);
 
-    std::ostream &print(std::ostream &o, int depth, bool isInline);
+    virtual void accept(Visitor &visitor);
   };
 
   struct Type
   {
-    yy::position pos;
+    position pos;
 
-    Type(yy::position pos);
+    Type(position pos);
 
-    virtual std::ostream &print(std::ostream &o, int depth, bool isInline);
+    virtual void accept(Visitor &visitor) = 0;
   };
 
   struct NamedType : Type
   {
-    std::shared_ptr<ID> named;
+    ptr<ID> named;
 
-    NamedType(ID *named, yy::position pos);
+    NamedType(ptr<ID> named, position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   struct ArrayType : Type
   {
-    std::shared_ptr<ID> array;
+    ptr<ID> array;
 
-    ArrayType(ID *array, yy::position pos);
+    ArrayType(ptr<ID> array, position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   struct RecordType : Type
   {
-    std::vector<Field> fields;
+    ptrs<Field> fields;
 
-    RecordType(std::vector<Field> fields, yy::position pos);
+    RecordType(ptrs<Field> fields, position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   struct Dec
   {
-    yy::position pos;
+    position pos;
 
-    Dec(yy::position pos);
+    Dec(position pos);
 
-    virtual std::ostream &print(std::ostream &o, int depth, bool isInline);
+    virtual void accept(Visitor &visitor) = 0;
   };
 
   struct TypeDec : Dec
   {
-    std::shared_ptr<ID> type_id;
-    std::shared_ptr<Type> type;
+    ptr<ID> type_id;
+    ptr<Type> type;
 
     TypeDec(
-        ID *type_id,
-        Type *type,
-        yy::position pos);
+        ptr<ID> type_id,
+        ptr<Type> type,
+        position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   struct VarDec : Dec
   {
-    std::shared_ptr<ID> var;
-    std::shared_ptr<ID> type_id;
-    std::shared_ptr<Exp> exp;
-    bool escape;
+    ptr<ID> var;
+    ptr<ID> type_id;
+    ptr<Exp> exp;
+    bool escape = false;
 
     VarDec(
-        ID *var,
-        ID *type_id,
-        Exp *exp,
-        bool escape,
-        yy::position pos);
+        ptr<ID> var,
+        ptr<ID> type_id,
+        ptr<Exp> exp,
+        position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   struct FunctionDec : Dec
   {
-    std::shared_ptr<ID> funcname;
-    std::vector<Field> parameters;
-    std::shared_ptr<ID> return_type;
-    std::shared_ptr<Exp> body;
+    ptr<ID> funcname;
+    ptrs<Field> parameters;
+    ptr<ID> return_type;
+    ptr<Exp> body;
 
     FunctionDec(
-        ID *funcname,
-        std::vector<Field> parameters,
-        ID *return_type,
-        Exp *body,
-        yy::position pos);
+        ptr<ID> funcname,
+        ptrs<Field> parameters,
+        ptr<ID> return_type,
+        ptr<Exp> body,
+        position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   typedef enum
@@ -174,146 +202,264 @@ namespace absyn
 
   struct Exp
   {
-    yy::position pos;
+    position pos;
 
-    Exp(yy::position pos);
+    Exp(position pos);
 
-    virtual std::ostream &print(std::ostream &o, int depth, bool isInline);
+    friend Visitor;
+    virtual void accept(Visitor &visitor) = 0;
   };
 
   struct Nil : Exp
   {
+    Nil(position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   struct Int : Exp
   {
     int value;
 
-    Int(int value, yy::position pos);
+    Int(int value, position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   struct String : Exp
   {
     std::string value;
 
-    String(std::string value, yy::position pos);
+    String(std::string value, position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   struct VarExp : Exp
   {
-    std::shared_ptr<Var> var;
+    ptr<Var> var;
 
-    VarExp(Var *var, yy::position pos);
+    VarExp(ptr<Var> var, position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   struct Assign : Exp
   {
-    std::shared_ptr<Var> var;
-    std::shared_ptr<Exp> exp;
+    ptr<Var> var;
+    ptr<Exp> exp;
 
     Assign(
-        Var *var,
-        Exp *exp,
-        yy::position pos);
+        ptr<Var> var,
+        ptr<Exp> exp,
+        position pos);
+
+    void accept(Visitor &visitor) override;
+  };
+
+  struct Seq : Exp
+  {
+    ptrs<Exp> seq;
+
+    Seq(ptrs<Exp> seq, position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   struct Call : Exp
   {
-    std::shared_ptr<ID> func;
-    std::vector<Exp> args;
+    ptr<ID> func;
+    ptrs<Exp> args;
 
     Call(
-        ID *func,
-        std::vector<Exp> args,
-        yy::position pos);
+        ptr<ID> func,
+        ptrs<Exp> args,
+        position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   struct BinOp : Exp
   {
-    std::shared_ptr<Exp> rhs;
-    std::shared_ptr<Exp> lhs;
+    ptr<Exp> rhs;
+    ptr<Exp> lhs;
     Oper op;
 
     BinOp(
-        Exp *rhs,
-        Exp *lhs,
+        ptr<Exp> lhs,
+        ptr<Exp> rhs,
         Oper op,
-        yy::position pos);
+        position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   struct RecordExp : Exp
   {
-    std::shared_ptr<ID> type_id;
-    std::vector<Record> records;
+    ptr<ID> type_id;
+    ptrs<Record> records;
 
     RecordExp(
-        ID *type_id,
-        std::vector<Record> records,
-        yy::position pos);
+        ptr<ID> type_id,
+        ptrs<Record> records,
+        position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   struct Array : Exp
   {
-    std::shared_ptr<ID> type_id;
-    std::shared_ptr<Exp> capacity;
-    std::shared_ptr<Exp> element;
+    ptr<ID> type_id;
+    ptr<Exp> capacity;
+    ptr<Exp> element;
 
     Array(
-        ID *type_id,
-        Exp *capacity,
-        Exp *element,
-        yy::position pos);
+        ptr<ID> type_id,
+        ptr<Exp> capacity,
+        ptr<Exp> element,
+        position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   struct If : Exp
   {
-    std::shared_ptr<Exp> condition;
-    std::shared_ptr<Exp> then;
-    std::shared_ptr<Exp> els;
+    ptr<Exp> condition;
+    ptr<Exp> then;
+    ptr<Exp> els;
 
     If(
-        Exp *condition,
-        Exp *then,
-        Exp *els,
-        yy::position pos);
+        ptr<Exp> condition,
+        ptr<Exp> then,
+        ptr<Exp> els,
+        position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   struct While : Exp
   {
-    std::shared_ptr<Exp> condition;
-    std::shared_ptr<Exp> body;
+    ptr<Exp> condition;
+    ptr<Exp> body;
 
     While(
-        Exp *condition,
-        Exp *body,
-        yy::position pos);
+        ptr<Exp> condition,
+        ptr<Exp> body,
+        position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   struct For : Exp
   {
-    std::shared_ptr<Var> var;
-    std::shared_ptr<Exp> from;
-    std::shared_ptr<Exp> to;
-    std::shared_ptr<Exp> body;
-    bool escape;
+    ptr<ID> var;
+    ptr<Exp> from;
+    ptr<Exp> to;
+    ptr<Exp> body;
+    bool escape = false;
 
     For(
-        Var *var,
-        Exp *from,
-        Exp *to,
-        Exp *body,
-        bool escape,
-        yy::position pos);
+        ptr<ID> var,
+        ptr<Exp> from,
+        ptr<Exp> to,
+        ptr<Exp> body,
+        position pos);
+
+    void accept(Visitor &visitor) override;
+  };
+
+  struct Break : Exp
+  {
+    Break(position pos);
+
+    void accept(Visitor &visitor) override;
   };
 
   struct Let : Exp
   {
-    std::vector<Dec> decs;
-    std::shared_ptr<Exp> body;
+    ptrs<Dec> decs;
+    ptr<Exp> body;
 
     Let(
-        std::vector<Dec> decs,
-        Exp *body,
-        yy::position pos);
+        ptrs<Dec> decs,
+        ptr<Exp> body,
+        position pos);
+
+    void accept(Visitor &visitor) override;
+  };
+
+  struct Visitor
+  {
+    virtual void visit(Nil &n) = 0;
+    virtual void visit(Int &i) = 0;
+    virtual void visit(String &s) = 0;
+    virtual void visit(VarExp &var) = 0;
+    virtual void visit(Assign &assign) = 0;
+    virtual void visit(Seq &seq) = 0;
+    virtual void visit(Call &call) = 0;
+    virtual void visit(BinOp &bin) = 0;
+    virtual void visit(RecordExp &record) = 0;
+    virtual void visit(Array &array) = 0;
+    virtual void visit(If &iff) = 0;
+    virtual void visit(While &whil) = 0;
+    virtual void visit(For &forr) = 0;
+    virtual void visit(Break &brk) = 0;
+    virtual void visit(Let &let) = 0;
+    virtual void visit(SimpleVar &var) = 0;
+    virtual void visit(FieldVar &field) = 0;
+    virtual void visit(SubscriptVar &subscript) = 0;
+    virtual void visit(ID &id) = 0;
+    virtual void visit(Record &record) = 0;
+    virtual void visit(Field &field) = 0;
+    virtual void visit(NamedType &named) = 0;
+    virtual void visit(ArrayType &arrayType) = 0;
+    virtual void visit(RecordType &recordType) = 0;
+    virtual void visit(TypeDec &typeDec) = 0;
+    virtual void visit(VarDec &varDec) = 0;
+    virtual void visit(FunctionDec &funcDec) = 0;
+  };
+
+  struct Printer : Visitor
+  {
+    int depth;
+    bool isInline;
+    std::string indent = "  ";
+    std::ostream &out;
+
+    Printer(std::ostream &out, int depth = 0, bool isInline = false);
+
+    void visit(Nil &n) override;
+    void visit(Int &i) override;
+    void visit(String &s) override;
+    void visit(VarExp &var) override;
+    void visit(Assign &assign) override;
+    void visit(Seq &seq) override;
+    void visit(Call &call) override;
+    void visit(BinOp &bin) override;
+    void visit(RecordExp &record) override;
+    void visit(Array &array) override;
+    void visit(If &iff) override;
+    void visit(While &whil) override;
+    void visit(For &forr) override;
+    void visit(Break &brk) override;
+    void visit(Let &let) override;
+    void visit(SimpleVar &var) override;
+    void visit(FieldVar &field) override;
+    void visit(SubscriptVar &subscript) override;
+    void visit(ID &id) override;
+    void visit(Record &record) override;
+    void visit(Field &field) override;
+    void visit(NamedType &named) override;
+    void visit(ArrayType &arrayType) override;
+    void visit(RecordType &recordType) override;
+    void visit(TypeDec &typeDec) override;
+    void visit(VarDec &varDec) override;
+    void visit(FunctionDec &funcDec) override;
+
+  protected:
+    void printIndent();
+    void changeLineOrSeparate(std::string sep);
+
+    Printer enter();
   };
 }

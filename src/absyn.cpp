@@ -1,184 +1,654 @@
 #include <memory>
 #include "absyn.h"
+#include "utils.h"
 
 using namespace std;
 using namespace absyn;
 
-ID::ID(std::string id, yy::position pos) : id(id), pos(pos) {}
-std::ostream &ID::print(std::ostream &o, int depth, bool isInline)
+ID::ID(std::string id, position pos) : id(id), pos(pos) {}
+
+void ID::accept(Visitor &visitor)
 {
-    return o << this->id;
+    visitor.visit(*this);
 }
 
 Record::Record(
-    ID *name,
-    Exp *value,
-    yy::position pos)
+    ptr<ID> name,
+    ptr<Exp> value,
+    position pos)
 {
-    this->name = shared_ptr<ID>(name);
-    this->value = shared_ptr<Exp>(value);
+    this->name = name;
+    this->value = value;
     this->pos = pos;
 }
 
-Var::Var(yy::position pos) : pos(pos) {}
-
-std::ostream &Var::print(std::ostream &o, int depth, bool isInline)
+void Record::accept(Visitor &visitor)
 {
-    return o;
+    visitor.visit(*this);
+}
+
+Var::Var(position pos) : pos(pos) {}
+
+SimpleVar::SimpleVar(ptr<ID> name, position pos) : Var::Var(pos)
+{
+    this->name = name;
+}
+
+void SimpleVar::accept(Visitor &visitor)
+{
+    visitor.visit(*this);
+}
+
+FieldVar::FieldVar(ptr<Var> var, ptr<ID> field, position pos) : Var::Var(pos)
+{
+    this->var = var;
+    this->field = field;
+}
+
+void FieldVar::accept(Visitor &visitor)
+{
+    visitor.visit(*this);
+}
+
+SubscriptVar::SubscriptVar(ptr<Var> var, ptr<Exp> subscript, position pos) : Var::Var(pos)
+{
+    this->var = var;
+    this->subscript = subscript;
+}
+
+void SubscriptVar::accept(Visitor &visitor)
+{
+    visitor.visit(*this);
 }
 
 Field::Field(
-    ID *name,
-    ID *type_id,
-    yy::position pos,
-    bool escape)
+    ptr<ID> name,
+    ptr<ID> type_id,
+    position pos)
 {
-    this->name = shared_ptr<ID>(name);
-    this->type_id = shared_ptr<ID>(type_id);
+    this->name = name;
+    this->type_id = type_id;
     this->pos = pos;
-    this->escape = escape;
 }
 
-Type::Type(yy::position pos) : pos(pos) {}
-std::ostream &Type::print(std::ostream &o, int depth, bool isInline)
+void Field::accept(Visitor &visitor)
 {
-    return o;
+    visitor.visit(*this);
 }
 
-NamedType::NamedType(ID *named, yy::position pos) : Type::Type(pos)
+Type::Type(position pos) : pos(pos) {}
+
+NamedType::NamedType(ptr<ID> named, position pos) : Type::Type(pos)
 {
-    this->named = shared_ptr<ID>(named);
+    this->named = named;
 }
 
-ArrayType::ArrayType(ID *array, yy::position pos) : Type::Type(pos)
+void NamedType::accept(Visitor &visitor)
 {
-    this->array = shared_ptr<ID>(array);
+    visitor.visit(*this);
 }
 
-RecordType::RecordType(std::vector<Field> fields, yy::position pos) : Type::Type(pos), fields(fields) {}
-
-Dec::Dec(yy::position pos) : pos(pos) {}
-
-std::ostream &Dec::print(std::ostream &o, int depth, bool isInline)
+ArrayType::ArrayType(ptr<ID> array, position pos) : Type::Type(pos)
 {
-    return o;
+    this->array = array;
 }
+
+void ArrayType::accept(Visitor &visitor)
+{
+    visitor.visit(*this);
+}
+
+RecordType::RecordType(ptrs<Field> fields, position pos) : Type::Type(pos)
+{
+    this->fields = fields;
+}
+
+void RecordType::accept(Visitor &visitor)
+{
+    visitor.visit(*this);
+}
+
+Dec::Dec(position pos) : pos(pos) {}
 
 TypeDec::TypeDec(
-    ID *type_id,
-    Type *type,
-    yy::position pos) : Dec::Dec(pos)
+    ptr<ID> type_id,
+    ptr<Type> type,
+    position pos) : Dec::Dec(pos)
 {
-    this->type_id = shared_ptr<ID>(type_id);
-    this->type = shared_ptr<Type>(type);
+    this->type_id = type_id;
+    this->type = type;
 }
 
-VarDec::VarDec(ID *var, ID *type_id, Exp *exp, bool escape, yy::position pos) : Dec::Dec(pos)
+void TypeDec::accept(Visitor &visitor)
 {
-    this->var = shared_ptr<ID>(var);
-    this->type_id = shared_ptr<ID>(type_id);
-    this->exp = shared_ptr<Exp>(exp);
-    this->escape = escape;
+    visitor.visit(*this);
+}
+
+VarDec::VarDec(
+    ptr<ID> var,
+    ptr<ID> type_id,
+    ptr<Exp> exp,
+    position pos) : Dec::Dec(pos)
+{
+    this->var = var;
+    this->type_id = type_id;
+    this->exp = exp;
+}
+
+void VarDec::accept(Visitor &visitor)
+{
+    visitor.visit(*this);
 }
 
 FunctionDec::FunctionDec(
-    ID *funcname,
-    std::vector<Field> parameters,
-    ID *return_type,
-    Exp *body,
-    yy::position pos)
+    ptr<ID> funcname,
+    ptrs<Field> parameters,
+    ptr<ID> return_type,
+    ptr<Exp> body,
+    position pos)
     : Dec::Dec(pos)
 {
-    this->funcname = shared_ptr<ID>(funcname);
+    this->funcname = funcname;
     this->parameters = parameters;
-    this->return_type = shared_ptr<ID>(return_type);
-    this->body = shared_ptr<Exp>(body);
+    this->return_type = return_type;
+    this->body = body;
 }
 
-Exp::Exp(yy::position pos) : pos(pos) {}
-
-std::ostream &Exp::print(std::ostream &o, int depth, bool isInline)
+void FunctionDec::accept(Visitor &visitor)
 {
-    return o;
+    visitor.visit(*this);
 }
 
-Int::Int(int value, yy::position pos) : Exp::Exp(pos), value(value) {}
+Exp::Exp(position pos) : pos(pos) {}
 
-String::String(std::string value, yy::position pos) : Exp::Exp(pos), value(value) {}
+Nil::Nil(position pos) : Exp::Exp(pos) {}
 
-VarExp::VarExp(Var *var, yy::position pos) : Exp::Exp(pos), var(shared_ptr<Var>(var)) {}
+void Nil::accept(Visitor &v)
+{
+    v.visit(*this);
+}
+
+Int::Int(int value, position pos) : Exp::Exp(pos), value(value) {}
+
+void Int::accept(Visitor &v)
+{
+    v.visit(*this);
+}
+
+String::String(std::string value, position pos) : Exp::Exp(pos), value(value) {}
+
+void String::accept(Visitor &v)
+{
+    v.visit(*this);
+}
+
+VarExp::VarExp(ptr<Var> var, position pos) : Exp::Exp(pos), var(var) {}
+
+void VarExp::accept(Visitor &v)
+{
+    v.visit(*this);
+}
 
 Assign::Assign(
-    Var *var,
-    Exp *exp,
-    yy::position pos) : Exp::Exp(pos), var(shared_ptr<Var>(var)), exp(shared_ptr<Exp>(exp)) {}
+    ptr<Var> var,
+    ptr<Exp> exp,
+    position pos) : Exp::Exp(pos), var(var), exp(exp) {}
+
+void Assign::accept(Visitor &v)
+{
+    v.visit(*this);
+}
+
+Seq::Seq(ptrs<Exp> seq, position pos) : Exp::Exp(pos), seq(seq) {}
+
+void Seq::accept(Visitor &v)
+{
+    v.visit(*this);
+}
 
 Call::Call(
-    ID *func,
-    std::vector<Exp> args,
-    yy::position pos) : Exp::Exp(pos), func(shared_ptr<ID>(func)), args(args) {}
+    ptr<ID> func,
+    ptrs<Exp> args,
+    position pos) : Exp::Exp(pos), func(func), args(args) {}
+
+void Call::accept(Visitor &v)
+{
+    v.visit(*this);
+}
 
 BinOp::BinOp(
-    Exp *rhs,
-    Exp *lhs,
+    ptr<Exp> lhs,
+    ptr<Exp> rhs,
     Oper op,
-    yy::position pos) : Exp::Exp(pos), rhs(shared_ptr<Exp>(rhs)), lhs(shared_ptr<Exp>(lhs)), op(op) {}
+    position pos) : Exp::Exp(pos), lhs(lhs), rhs(rhs), op(op) {}
+
+void BinOp::accept(Visitor &v)
+{
+    v.visit(*this);
+}
 
 RecordExp::RecordExp(
-    ID *type_id,
-    std::vector<Record> records,
-    yy::position pos) : Exp::Exp(pos), type_id(shared_ptr<ID>(type_id)), records(records) {}
+    ptr<ID> type_id,
+    ptrs<Record> records,
+    position pos) : Exp::Exp(pos), type_id(type_id), records(records) {}
+
+void RecordExp::accept(Visitor &v)
+{
+    v.visit(*this);
+}
 
 Array::Array(
-    ID *type_id,
-    Exp *capacity,
-    Exp *element,
-    yy::position pos) : Exp::Exp(pos)
+    ptr<ID> type_id,
+    ptr<Exp> capacity,
+    ptr<Exp> element,
+    position pos) : Exp::Exp(pos)
 {
-    this->type_id = shared_ptr<ID>(type_id);
-    this->capacity = shared_ptr<Exp>(capacity);
-    this->element = shared_ptr<Exp>(element);
+    this->type_id = type_id;
+    this->capacity = capacity;
+    this->element = element;
+}
+
+void Array::accept(Visitor &v)
+{
+    v.visit(*this);
 }
 
 If::If(
-    Exp *condition,
-    Exp *then,
-    Exp *els,
-    yy::position pos) : Exp::Exp(pos)
+    ptr<Exp> condition,
+    ptr<Exp> then,
+    ptr<Exp> els,
+    position pos) : Exp::Exp(pos)
 {
-    this->condition = shared_ptr<Exp>(condition);
-    this->then = shared_ptr<Exp>(then);
-    this->els = shared_ptr<Exp>(els);
+    this->condition = condition;
+    this->then = then;
+    this->els = els;
+}
+
+void If::accept(Visitor &v)
+{
+    v.visit(*this);
 }
 
 While::While(
-    Exp *condition,
-    Exp *body,
-    yy::position pos) : Exp::Exp(pos)
+    ptr<Exp> condition,
+    ptr<Exp> body,
+    position pos) : Exp::Exp(pos)
 {
-    this->condition = shared_ptr<Exp>(condition);
-    this->body = shared_ptr<Exp>(body);
+    this->condition = condition;
+    this->body = body;
+}
+
+void While::accept(Visitor &v)
+{
+    v.visit(*this);
 }
 
 For::For(
-    Var *var,
-    Exp *from,
-    Exp *to,
-    Exp *body,
-    bool escape,
-    yy::position pos) : Exp::Exp(pos)
+    ptr<ID> var,
+    ptr<Exp> from,
+    ptr<Exp> to,
+    ptr<Exp> body,
+    position pos) : Exp::Exp(pos)
 {
-    this->var = shared_ptr<Var>(var);
-    this->from = shared_ptr<Exp>(from);
-    this->to = shared_ptr<Exp>(to);
-    this->body = shared_ptr<Exp>(body);
+    this->var = var;
+    this->from = from;
+    this->to = to;
+    this->body = body;
+}
+
+void For::accept(Visitor &v)
+{
+    v.visit(*this);
+}
+
+Break::Break(position pos) : Exp::Exp(pos) {}
+
+void Break::accept(Visitor &v)
+{
+    v.visit(*this);
 }
 
 Let::Let(
-    std::vector<Dec> decs,
-    Exp *body,
-    yy::position pos) : Exp::Exp(pos)
+    ptrs<Dec> decs,
+    ptr<Exp> body,
+    position pos) : Exp::Exp(pos)
 {
     this->decs = decs;
-    this->body = shared_ptr<Exp>(body);
+    this->body = body;
+}
+
+void Let::accept(Visitor &v)
+{
+    v.visit(*this);
+}
+
+/// Implementations of Printer
+
+Printer::Printer(std::ostream &out, int depth, bool isInline) : out(out)
+{
+    this->depth = depth;
+    this->isInline = isInline;
+}
+
+void Printer::visit(Nil &n)
+{
+    this->out << "Nil";
+}
+
+void Printer::visit(Int &i)
+{
+    this->out << "Int<";
+    this->out << i.value;
+    this->out << ">";
+}
+
+void Printer::visit(String &s)
+{
+    this->out << "String<";
+    this->out << s.value;
+    this->out << ">";
+}
+
+void Printer::visit(VarExp &var)
+{
+    var.var->accept(*this);
+}
+
+void Printer::visit(Assign &assign)
+{
+    this->out << "Assign<";
+    assign.var->accept(*this);
+    this->out << ", ";
+    assign.exp->accept(*this);
+    this->out << ">";
+}
+
+void Printer::visit(Seq &seq)
+{
+    for (auto iter = seq.seq.begin(); iter != seq.seq.end(); ++iter)
+    {
+        this->depth++;
+        (*iter)->accept(*this);
+        this->depth--;
+        if (iter != seq.seq.end() - 1)
+            this->out << endl;
+    }
+}
+
+void Printer::visit(Call &call)
+{
+    this->out << "Call<";
+    call.func->accept(*this);
+    for (auto iter = call.args.begin(); iter != call.args.end(); ++iter)
+    {
+        this->out << ", ";
+        (*iter)->accept(*this);
+    }
+    this->out << ">";
+}
+
+void Printer::visit(BinOp &bin)
+{
+    switch (bin.op)
+    {
+    case plusOp:
+        this->out << "ADD";
+        break;
+    case minusOp:
+        this->out << "SUB";
+        break;
+    case timesOp:
+        this->out << "MUL";
+        break;
+    case divideOp:
+        this->out << "DIV";
+        break;
+    case eqOp:
+        this->out << "EQ";
+        break;
+    case neqOp:
+        this->out << "NE";
+        break;
+    case ltOp:
+        this->out << "LT";
+        break;
+    case leOp:
+        this->out << "LE";
+        break;
+    case gtOp:
+        this->out << "GT";
+        break;
+    case geOp:
+        this->out << "GE";
+        break;
+    }
+
+    this->out << "<";
+    bin.lhs->accept(*this);
+    this->out << ", ";
+    bin.rhs->accept(*this);
+    this->out << ">";
+}
+
+void Printer::visit(RecordExp &record)
+{
+    this->out << "RecordExp<";
+    record.type_id->accept(*this);
+    for (auto rcd : record.records)
+    {
+        this->out << ",";
+        rcd->accept(*this);
+    }
+    this->out << ">";
+}
+
+void Printer::visit(Array &array)
+{
+    this->out << "Array<";
+    array.capacity->accept(*this);
+    this->out << ", ";
+    array.element->accept(*this);
+    this->out << ">";
+}
+
+void Printer::visit(If &iff)
+{
+    this->out << "If<";
+    iff.condition->accept(*this);
+    this->out << ", ";
+    iff.then->accept(*this);
+    if (iff.els)
+    {
+        this->out << ", ";
+        iff.els->accept(*this);
+    }
+    this->out << ">";
+}
+
+void Printer::visit(While &whil)
+{
+    this->out << "While<";
+    whil.condition->accept(*this);
+    this->out << ", ";
+    whil.body->accept(*this);
+    this->out << ">";
+}
+
+void Printer::visit(For &forr)
+{
+    this->out << "For<";
+    forr.var->accept(*this);
+    this->out << ",";
+    forr.from->accept(*this);
+    this->out << ",";
+    forr.to->accept(*this);
+    this->out << ">" << endl;
+    this->depth++;
+    forr.body->accept(*this);
+    this->depth--;
+}
+
+void Printer::visit(Break &brk)
+{
+    this->out << "Break";
+}
+
+void Printer::visit(Let &let)
+{
+    printIndent();
+    this->out << "Let" << endl;
+    for (auto dec : let.decs)
+    {
+        this->depth++;
+        printIndent();
+        dec->accept(*this);
+        this->depth--;
+        this->out << endl;
+    }
+    printIndent();
+    this->out << "IN" << endl;
+    this->depth++;
+    let.body->accept(*this);
+    this->depth--;
+    this->out << endl;
+    printIndent();
+    this->out << "END";
+}
+
+void Printer::visit(SimpleVar &var)
+{
+    this->out << "Var<";
+    var.name->accept(*this);
+    this->out << ">";
+}
+
+void Printer::visit(FieldVar &field)
+{
+    this->out << "Field<";
+    field.var->accept(*this);
+    this->out << ", ";
+    field.field->accept(*this);
+    this->out << ">";
+}
+
+void Printer::visit(SubscriptVar &subscript)
+{
+    this->out << "Subscript<";
+    subscript.var->accept(*this);
+    this->out << ", ";
+    subscript.subscript->accept(*this);
+    this->out << ">";
+}
+
+void Printer::visit(ID &id)
+{
+    this->out << id.id;
+}
+
+void Printer::visit(Record &record)
+{
+    this->out << "Record<";
+    record.name->accept(*this);
+    this->out << ",";
+    record.value->accept(*this);
+    this->out << ">";
+}
+
+void Printer::visit(Field &field)
+{
+    this->out << "Field: ";
+    field.name->accept(*this);
+    this->out << "<";
+    field.type_id->accept(*this);
+    this->out << ">";
+}
+
+void Printer::visit(NamedType &named)
+{
+    this->out << "<";
+    named.named->accept(*this);
+    this->out << ">";
+}
+
+void Printer::visit(ArrayType &arrayType)
+{
+    this->out << "Array<";
+    arrayType.array->accept(*this);
+    this->out << "Array>";
+}
+
+void Printer::visit(RecordType &recordType)
+{
+    this->out << "Record<";
+    for (auto field : recordType.fields)
+    {
+        field->accept(*this);
+    }
+    this->out << ">";
+}
+
+void Printer::visit(TypeDec &typeDec)
+{
+    this->out << "@Type<";
+    typeDec.type_id->accept(*this);
+    this->out << ", ";
+    typeDec.type->accept(*this);
+    this->out << ">";
+}
+
+void Printer::visit(VarDec &varDec)
+{
+    this->out << "@Var<";
+    varDec.var->accept(*this);
+    if (varDec.type_id)
+    {
+        this->out << ", ";
+        varDec.type_id->accept(*this);
+    }
+    this->out << ", ";
+    varDec.exp->accept(*this);
+    this->out << ">";
+}
+
+void Printer::visit(FunctionDec &funcDec)
+{
+    this->out << "@Function<";
+    funcDec.funcname->accept(*this);
+    if (funcDec.return_type)
+    {
+        this->out << ":";
+        funcDec.return_type->accept(*this);
+    }
+    for (auto param : funcDec.parameters)
+    {
+        this->out << ", ";
+        param->accept(*this);
+    }
+    this->out << ">" << endl;
+    this->depth++;
+    funcDec.body->accept(*this);
+    this->depth--;
+}
+
+void Printer::printIndent()
+{
+    if (isInline || depth == 0)
+        return;
+
+    for (int i = 0; i < depth; ++i)
+    {
+        this->out << indent;
+    }
+}
+
+void Printer::changeLineOrSeparate(std::string sep)
+{
+    if (isInline)
+    {
+        this->out << sep;
+    }
+    else
+    {
+        this->out << endl;
+    }
 }

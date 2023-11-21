@@ -76,7 +76,7 @@
 %token OR           "|"
 %token ASSIGN       ":="
 %token <int> INT "integer"
-%token <std::string> STR "string"
+%token <std::string> STRING "string"
 %token <std::string> ID "id"
 %token EOF 0
 
@@ -88,14 +88,122 @@
 %left "+" "-"
 %left "*" "/"
 %left UMINUS
-%nterm <absyn::Exp *> exp
+%nterm <absyn::ptr<absyn::Exp>> exp
+%nterm <absyn::ptr<absyn::Var>> lvalue
+%nterm <absyn::ptrs<absyn::Exp>> expseq expseq_ arg_list arg_list_
+%nterm <absyn::ptrs<absyn::Record>> record_list record_list_
+%nterm <absyn::ptr<absyn::Record>> record
+%nterm <absyn::ptrs<absyn::Dec>> decs
+%nterm <absyn::ptr<absyn::Dec>> dec typedec vardec funcdec
+%nterm <absyn::ptr<absyn::Type>> ty
+%nterm <absyn::ptrs<absyn::Field>> tyfields tyfields_
+%nterm <absyn::ptr<absyn::Field>> tyfield
+%nterm <absyn::ptr<absyn::ID>> id
 
 %start program
 %%
 
-program: exp            { root.emplace<Exp *>($1); }
+program: exp            { root.emplace<std::shared_ptr<Exp>>($1); }
 
-exp: "while"            { $$ = new Int(1, yy::position()); }
+exp:        INT                                 { $$ = make_shared<Int>($1, @1.begin); }
+            | STRING                            { $$ = make_shared<String>($1, @1.begin); }
+            | NIL                               { $$ = make_shared<Nil>(@1.begin); }
+            | lvalue                            { $$ = make_shared<VarExp>($1, @1.begin); }
+            | lvalue ":=" exp                   { $$ = make_shared<Assign>($1, $3, @1.begin); }
+            | "(" expseq ")"                    { $$ = make_shared<Seq>($2, @1.begin); }
+            | "-" exp %prec UMINUS              {
+                                                  auto zero = make_shared<Int>(0, @1.begin);
+                                                  $$ = make_shared<BinOp>(zero, $2, Oper::minusOp, @1.begin);
+                                                }
+            | id "(" arg_list ")"               { $$ = make_shared<Call>($1, $3, @1.begin); }
+            | exp "+" exp                       { $$ = make_shared<BinOp>($1, $3, Oper::plusOp, @2.begin); }
+            | exp "-" exp                       { $$ = make_shared<BinOp>($1, $3, Oper::minusOp, @2.begin); }
+            | exp "*" exp                       { $$ = make_shared<BinOp>($1, $3, Oper::timesOp, @2.begin); }
+            | exp "/" exp                       { $$ = make_shared<BinOp>($1, $3, Oper::divideOp, @2.begin); }
+            | exp "=" exp                       { $$ = make_shared<BinOp>($1, $3, Oper::eqOp, @2.begin); }
+            | exp "<>" exp                      { $$ = make_shared<BinOp>($1, $3, Oper::neqOp, @2.begin); }
+            | exp ">" exp                       { $$ = make_shared<BinOp>($1, $3, Oper::gtOp, @2.begin); }
+            | exp "<" exp                       { $$ = make_shared<BinOp>($1, $3, Oper::ltOp, @2.begin); }
+            | exp ">=" exp                      { $$ = make_shared<BinOp>($1, $3, Oper::geOp, @2.begin); }
+            | exp "<=" exp                      { $$ = make_shared<BinOp>($1, $3, Oper::leOp, @2.begin); }
+            | exp "&" exp                       {
+                                                  auto zero = make_shared<Int>(0, @1.begin);
+                                                  $$ = make_shared<If>($1, $3, zero, @1.begin);
+                                                }
+            | exp "|" exp                       {
+                                                  auto one = make_shared<Int>(1, @1.begin);
+                                                  $$ = make_shared<If>($1, one, $3, @1.begin);
+                                                }
+            | id "{" record_list "}"            { $$ = make_shared<RecordExp>($1, $3, @1.begin); }
+            | id "[" exp "]" "of" exp           { $$ = make_shared<Array>($1, $3, $6, @1.begin); }
+            | IF exp THEN exp ELSE exp          { $$ = make_shared<If>($2, $4, $6, @1.begin); }
+            | IF exp THEN exp                   { $$ = make_shared<If>($2, $4, nullptr, @1.begin); }
+            | WHILE exp DO exp                  { $$ = make_shared<While>($2, $4, @1.begin); }
+            | FOR id ":=" exp TO exp DO exp     { $$ = make_shared<For>($2, $4, $6, $8, @1.begin); }
+            | BREAK                             { $$ = make_shared<Break>(@1.begin); }
+            | LET decs IN expseq END            {
+                                                  auto seq = make_shared<Seq>($4, @4.begin);
+                                                  $$ = make_shared<Let>($2, seq, @1.begin);
+                                                }
+
+lvalue:     id %prec LVALUE                     { $$ = make_shared<SimpleVar>($1, @1.begin); }
+            | id "[" exp "]"                    {
+                                                  auto var = make_shared<SimpleVar>($1, @1.begin);
+                                                  $$ = make_shared<SubscriptVar>(var, $3, @1.begin);
+                                                }
+            | lvalue "." id                     { $$ = make_shared<FieldVar>($1, $3, @1.begin); }
+            | lvalue "[" exp "]"                { $$ = make_shared<SubscriptVar>($1, $3, @1.begin); }
+
+expseq:     /* empty */                         { $$ = ptrs<Exp>(); }
+            | expseq_                           { $$ = $1; }
+
+expseq_:    exp                                 { $$ = ptrs<Exp>{ $1 }; }
+            | expseq_ ";" exp                   { $$ = $1; $$.push_back($3); }
+
+arg_list:   /* empty */                         { $$ = ptrs<Exp>(); }
+            | arg_list_                         { $$ = $1; }
+
+arg_list_:  exp                                 { $$ = ptrs<Exp>{ $1 }; }
+            | arg_list_ "," exp                 { $$ = $1; $$.push_back($3); }
+
+record_list:    /* empty */                     { $$ = ptrs<Record>(); }
+            | record_list_                      { $$ = $1; }
+
+record_list_:   record                          { $$ = ptrs<Record>{ $1 }; }
+            | record_list_ "," record           { $$ = $1; $$.push_back($3); }
+
+record:     id "=" exp                          { $$ = make_shared<Record>($1, $3, @1.begin); }
+
+decs:       /* empty */                         { $$ = ptrs<Dec>(); }
+            | decs dec                          { $$ = $1, $$.push_back($2); }
+
+dec:        typedec                             { $$ = $1; }
+            | vardec                            { $$ = $1; }
+            | funcdec                           { $$ = $1; }
+
+typedec:    "type" id "=" ty                    { $$ = make_shared<TypeDec>($2, $4, @1.begin); }
+
+ty:         id                                  { $$ = make_shared<NamedType>($1, @1.begin); }
+            | "array" "of" id                   { $$ = make_shared<ArrayType>($3, @1.begin); }
+            | "{" tyfields "}"                  { $$ = make_shared<RecordType>($2, @1.begin); }
+
+tyfields:   /* empty */                         { $$ = ptrs<Field>(); }
+            | tyfields_                         { $$ = $1; }
+
+tyfields_:  tyfield                             { $$ = ptrs<Field>{ $1 }; }
+            | tyfields_ "," tyfield             { $$ = $1; $$.push_back($3); }
+
+tyfield:    id ":" id                           { $$ = make_shared<Field>($1, $3, @1.begin); }
+
+vardec:     "var" id ":=" exp                   { $$ = make_shared<VarDec>($2, nullptr, $4, @1.begin); }
+            | "var" id ":" id ":=" exp          { $$ = make_shared<VarDec>($2, $4, $6, @1.begin); }
+
+funcdec:    "function" id "(" tyfields ")" "=" exp
+                                                { $$ = make_shared<FunctionDec>($2, $4, nullptr, $7, @1.begin); }
+            | "function" id "(" tyfields ")" ":" id "=" exp
+                                                { $$ = make_shared<FunctionDec>($2, $4, $7, $9, @1.begin); }
+
+id:         ID                                  { $$ = make_shared<ID>($1, @1.begin); }
 
 %%
 
