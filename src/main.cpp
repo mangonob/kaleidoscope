@@ -22,6 +22,7 @@ int main(int argc, char *argv[])
     cg::CodeGenerator generator;
     auto ret = exp->accept(generator);
     generator.builder->CreateRet(ret.value);
+    generator.optimize();
     generator.moduler->print(llvm::outs(), nullptr);
   }
 

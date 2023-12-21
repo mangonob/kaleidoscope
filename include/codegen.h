@@ -8,6 +8,7 @@
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/PassManager.h>
+#include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Function.h>
 #include "absyn.h"
 #include "types.h"
@@ -99,13 +100,15 @@ namespace cg
     virtual TyValue visit(absyn::VarDec &varDec) override;
     virtual TyValue visit(absyn::FunctionDec &funcDec) override;
 
+    void optimize();
+
     CodeGenerator();
 
     std::string newLabel(std::string topic = "");
 
   protected:
     std::unique_ptr<llvm::LLVMContext> context;
-    std::unique_ptr<llvm::FunctionPassManager> functionPassManager;
+    std::unique_ptr<llvm::legacy::FunctionPassManager> functionPassManager;
     std::unique_ptr<llvm::FunctionAnalysisManager> functionAnalysisManager;
     tb::Table<std::string, std::shared_ptr<Enventry>> namedValues;
     tb::Table<std::string, std::shared_ptr<ty::Type>> namedTypes;

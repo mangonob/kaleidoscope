@@ -2,7 +2,9 @@
 #include <llvm/IR/Function.h>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Type.h>
+#include <llvm/Pass.h>
 #include <llvm/Analysis/LoopAnalysisManager.h>
+#include <llvm/Transforms/Utils.h>
 #include <memory>
 #include <sstream>
 #include <map>
@@ -25,7 +27,8 @@ CodeGenerator::CodeGenerator()
   context = make_unique<LLVMContext>();
   builder = make_unique<IRBuilder<>>(*context);
   moduler = make_unique<Module>("main module", *context);
-  functionPassManager = make_unique<FunctionPassManager>();
+  functionPassManager = make_unique<legacy::FunctionPassManager>(moduler.get());
+  functionPassManager->add(createPromoteMemoryToRegisterPass());
   functionAnalysisManager = make_unique<FunctionAnalysisManager>();
 
   auto mainFuncType = FunctionType::get(llvm::Type::getVoidTy(*context), false);
@@ -793,6 +796,14 @@ string CodeGenerator::newLabel(string topic)
   ostringstream o;
   o << "L" << this->label_id++;
   return topic.empty() ? o.str() : o.str() + "_" + topic;
+}
+
+void CodeGenerator::optimize()
+{
+  for (auto &func : moduler->getFunctionList())
+  {
+    functionPassManager->run(func);
+  }
 }
 
 TyValue CodeGenerator::mkVoid()
