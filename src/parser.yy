@@ -27,7 +27,7 @@
 %define parse.assert
 %define api.token.prefix {TOK_}
 %parse-param { yy::TigerLexer &lexer }
-%parse-param { yy::TigerParser::value_type &root }
+%parse-param { std::shared_ptr<absyn::Exp> &root }
 
 %locations
 
@@ -103,7 +103,7 @@
 %start program
 %%
 
-program: exp            { root.emplace<std::shared_ptr<Exp>>($1); }
+program: exp            { root = $1; }
 
 exp:        INT                                 { $$ = make_shared<Int>($1, @1.begin); }
             | STRING                            { $$ = make_shared<String>($1, @1.begin); }

@@ -1,29 +1,28 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
-#include <nlohmann/json.hpp>
+#include <llvm/Support/Format.h>
 #include "parser.tab.hpp"
 #include "TigerLexer.h"
 #include "absyn.h"
+#include "codegen.h"
+#include "types.h"
 
 using namespace std;
 using namespace absyn;
-using nlohmann::ordered_json;
 
 int main(int argc, char *argv[])
 {
   yy::TigerLexer x;
-  yy::TigerParser::value_type value;
-  yy::TigerParser y(x, value);
+  shared_ptr<Exp> exp;
+  yy::TigerParser y(x, exp);
 
   if (y.parse() == 0)
   {
-    auto result = value.as<std::shared_ptr<Exp>>();
-    ostringstream o;
-    Printer p(o);
-    result->accept(p);
-    auto j = ordered_json::parse(o.str());
-    cout << setw(2) << j << endl;
+    cg::CodeGenerator generator;
+    auto ret = exp->accept(generator);
+    generator.builder->CreateRet(ret.value);
+    generator.moduler->print(llvm::outs(), nullptr);
   }
 
   exit(0);

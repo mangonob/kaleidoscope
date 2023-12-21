@@ -2,6 +2,7 @@
 #include <regex>
 #include "absyn.h"
 #include "utils.h"
+#include "codegen.h"
 
 using namespace std;
 using namespace absyn;
@@ -407,34 +408,34 @@ void Printer::visit(BinOp &bin)
     this->out << "{\"type\":\"BinOp\",\"op\":\"";
     switch (bin.op)
     {
-    case plusOp:
+    case Oper::plusOp:
         this->out << "ADD";
         break;
-    case minusOp:
+    case Oper::minusOp:
         this->out << "SUB";
         break;
-    case timesOp:
+    case Oper::timesOp:
         this->out << "MUL";
         break;
-    case divideOp:
+    case Oper::divideOp:
         this->out << "DIV";
         break;
-    case eqOp:
+    case Oper::eqOp:
         this->out << "EQ";
         break;
-    case neqOp:
+    case Oper::neqOp:
         this->out << "NE";
         break;
-    case ltOp:
+    case Oper::ltOp:
         this->out << "LT";
         break;
-    case leOp:
+    case Oper::leOp:
         this->out << "LE";
         break;
-    case gtOp:
+    case Oper::gtOp:
         this->out << "GT";
         break;
-    case geOp:
+    case Oper::geOp:
         this->out << "GE";
         break;
     }
@@ -649,3 +650,57 @@ void Printer::visit(FunctionDec &funcDec)
     funcDec.body->accept(*this);
     this->out << "}";
 }
+
+bool absyn::isRelOp(Oper op)
+{
+    switch (op)
+    {
+    case Oper::eqOp:
+    case Oper::neqOp:
+    case Oper::ltOp:
+    case Oper::leOp:
+    case Oper::gtOp:
+    case Oper::geOp:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool absyn::isArithOp(Oper op)
+{
+    switch (op)
+    {
+    case Oper::plusOp:
+    case Oper::minusOp:
+    case Oper::timesOp:
+    case Oper::divideOp:
+        return true;
+    default:
+        return false;
+    }
+}
+
+/// Accept function serial of AbstractCodeGenerator.
+
+cg::TyValue Nil::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }
+cg::TyValue Int::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }
+cg::TyValue String::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }
+cg::TyValue VarExp::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }
+cg::TyValue Assign::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }
+cg::TyValue Seq::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }
+cg::TyValue Call::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }
+cg::TyValue BinOp::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }
+cg::TyValue RecordExp::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }
+cg::TyValue Array::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }
+cg::TyValue If::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }
+cg::TyValue While::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }
+cg::TyValue For::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }
+cg::TyValue Break::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }
+cg::TyValue Let::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }
+cg::TyValue SimpleVar::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }
+cg::TyValue FieldVar::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }
+cg::TyValue SubscriptVar::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }
+cg::TyValue TypeDec::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }
+cg::TyValue VarDec::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }
+cg::TyValue FunctionDec::accept(cg::AbstractCodeGenerator &generator) { return generator.visit(*this); }

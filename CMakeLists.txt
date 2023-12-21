@@ -11,8 +11,16 @@ set(INCLUDE ${CMAKE_SOURCE_DIR}/include)
 file(GLOB SOURCE_FILES ${SRC}/*.cpp)
 
 find_package(LLVM REQUIRED CONFIG)
+
+message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+
 include_directories(${LLVM_INCLUDE_DIRS})
-add_definitions(${LLVM_DEFINITIONS})
+separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
+add_definitions(${LLVM_DEFINITIONS_LIST})
+
+llvm_map_components_to_libnames(llvm_libs support core irreader analysis)
+message(STATUS "Components mapped to libnames: ${llvm_libs}")
 
 find_package(nlohmann_json REQUIRED)
 
@@ -24,8 +32,6 @@ add_executable(kalec ${SOURCE_FILES}
 install(TARGETS kalec DESTINATION bin)
 
 target_include_directories(kalec PUBLIC ${INCLUDE})
-
-llvm_map_components_to_libnames(llvm_libs support core irreader)
 
 # Link against LLVM libraries
 target_link_libraries(kalec PRIVATE

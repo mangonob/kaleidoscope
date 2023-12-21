@@ -4,6 +4,12 @@
 #include <vector>
 #include "location.hh"
 
+namespace cg
+{
+  struct TyValue;
+  class AbstractCodeGenerator;
+};
+
 namespace absyn
 {
   template <typename T>
@@ -49,6 +55,7 @@ namespace absyn
 
     friend Visitor;
     virtual void accept(Visitor &visitor) = 0;
+    virtual cg::TyValue accept(cg::AbstractCodeGenerator &generator) = 0;
   };
 
   struct SimpleVar : Var
@@ -58,6 +65,7 @@ namespace absyn
     SimpleVar(ptr<ID> name, position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
   struct FieldVar : Var
@@ -68,6 +76,7 @@ namespace absyn
     FieldVar(ptr<Var> var, ptr<ID> field, position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
   struct SubscriptVar : Var
@@ -78,6 +87,7 @@ namespace absyn
     SubscriptVar(ptr<Var> var, ptr<Exp> subscript, position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
   struct Field
@@ -138,6 +148,7 @@ namespace absyn
     Dec(position pos);
 
     virtual void accept(Visitor &visitor) = 0;
+    virtual cg::TyValue accept(cg::AbstractCodeGenerator &generator) = 0;
   };
 
   struct TypeDec : Dec
@@ -151,6 +162,7 @@ namespace absyn
         position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
   struct VarDec : Dec
@@ -167,6 +179,7 @@ namespace absyn
         position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
   struct FunctionDec : Dec
@@ -184,9 +197,10 @@ namespace absyn
         position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
-  typedef enum
+  enum class Oper
   {
     plusOp,
     minusOp,
@@ -197,8 +211,12 @@ namespace absyn
     ltOp,
     leOp,
     gtOp,
-    geOp,
-  } Oper;
+    geOp
+  };
+
+  bool isRelOp(Oper op);
+
+  bool isArithOp(Oper op);
 
   struct Exp
   {
@@ -208,6 +226,7 @@ namespace absyn
 
     friend Visitor;
     virtual void accept(Visitor &visitor) = 0;
+    virtual cg::TyValue accept(cg::AbstractCodeGenerator &generator) = 0;
   };
 
   struct Nil : Exp
@@ -215,6 +234,7 @@ namespace absyn
     Nil(position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
   struct Int : Exp
@@ -224,6 +244,7 @@ namespace absyn
     Int(int value, position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
   struct String : Exp
@@ -233,6 +254,7 @@ namespace absyn
     String(std::string value, position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
   struct VarExp : Exp
@@ -242,6 +264,7 @@ namespace absyn
     VarExp(ptr<Var> var, position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
   struct Assign : Exp
@@ -255,6 +278,7 @@ namespace absyn
         position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
   struct Seq : Exp
@@ -264,6 +288,7 @@ namespace absyn
     Seq(ptrs<Exp> seq, position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
   struct Call : Exp
@@ -277,6 +302,7 @@ namespace absyn
         position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
   struct BinOp : Exp
@@ -292,6 +318,7 @@ namespace absyn
         position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
   struct RecordExp : Exp
@@ -305,6 +332,7 @@ namespace absyn
         position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
   struct Array : Exp
@@ -320,6 +348,7 @@ namespace absyn
         position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
   struct If : Exp
@@ -335,6 +364,7 @@ namespace absyn
         position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
   struct While : Exp
@@ -348,6 +378,7 @@ namespace absyn
         position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
   struct For : Exp
@@ -366,6 +397,7 @@ namespace absyn
         position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
   struct Break : Exp
@@ -373,6 +405,7 @@ namespace absyn
     Break(position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
   struct Let : Exp
@@ -386,6 +419,7 @@ namespace absyn
         position pos);
 
     void accept(Visitor &visitor) override;
+    cg::TyValue accept(cg::AbstractCodeGenerator &generator) override;
   };
 
   struct Visitor
