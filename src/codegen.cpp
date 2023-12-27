@@ -103,7 +103,16 @@ namespace ty
 {
   bool match(const ty::Type &lhs, const ty::Type &rhs)
   {
-    return actualTy(&lhs)->match(*actualTy(&rhs));
+    auto ac_lhs = actualTy(&lhs);
+    auto ac_rhs = actualTy(&rhs);
+    if (dynamic_cast<const ty::Record *>(&lhs))
+    {
+      return ac_rhs->match(*ac_lhs) || ac_rhs->match(ty::Nil());
+    }
+    else
+    {
+      return ac_lhs->match(*ac_rhs);
+    }
   }
 
   bool mismatch(const ty::Type &lhs, const ty::Type &rhs)
@@ -141,7 +150,7 @@ TyValue CodeGenerator::visit(Assign &assign)
   auto var = assign.var->accept(*this);
   auto exp = assign.exp->accept(*this);
 
-  if (!var.type->match(*exp.type))
+  if (!match(*var.type, *exp.type))
     fatalError("unmatched type assignment", assign.exp->pos);
 
   builder->CreateStore(exp.value, var.value);
@@ -184,7 +193,7 @@ TyValue CodeGenerator::visit(Call &call)
   for (auto arg : call.args)
   {
     auto arg_tyvalue = arg->accept(*this);
-    if (!(*iter)->match(*arg_tyvalue.type))
+    if (mismatch(*iter->get(), *arg_tyvalue.type))
     {
       fatalError("unmatched parameter type", arg->pos);
     }
@@ -533,8 +542,10 @@ void CodeGenerator::preprocessTypeDecs(vector<TypeDec *> decs)
         *ptr = ty->get();
 }
 
-llvm::Type *CodeGenerator::type2IRType(const ty::Type *type)
+llvm::Type *CodeGenerator::type2IRType(const ty::Type *ty)
 {
+  auto type = actualTy(ty);
+
   if (type->match(ty::Int()))
   {
     return builder->getInt64Ty();
