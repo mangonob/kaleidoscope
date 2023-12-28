@@ -2,7 +2,7 @@
 #if !defined(yyFlexLexerOnce)
 #include <FlexLexer.h>
 #endif
-#include <string>
+#include <sstream>
 #include "parser.tab.hpp"
 #include "location.hh"
 
@@ -14,6 +14,8 @@ namespace yy
     location loc;
 
     virtual yy::TigerParser::symbol_type _yylex();
-    std::string s;
+    std::ostringstream str_o;
+
+    void lexerError(std::string reason, location loc);
   };
 }

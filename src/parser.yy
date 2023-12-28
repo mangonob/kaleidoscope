@@ -208,5 +208,6 @@ id:         ID                                  { $$ = make_shared<ID>($1, @1.be
 %%
 
 void yy::TigerParser::error(const yy::location &loc, const string &msg) {
-  cout << "parser error (reason: " << msg << ")." << endl;
+  cerr << "parser error reason: " << msg << " (row: "
+    << loc.begin.line << ", column: " << loc.begin.column << ")." << endl;
 }

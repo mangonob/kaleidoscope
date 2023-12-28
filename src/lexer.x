@@ -5,11 +5,22 @@
     #include "TigerLexer.h"
     #undef YY_DECL
     #define YY_DECL yy::TigerParser::symbol_type yy::TigerLexer::_yylex()
+    #define YY_USER_ACTION do { \
+        if (yy_start_stack_ptr == 0) { \
+            loc.step(); \
+        } \
+        loc.columns(yyleng); \
+    } while(0);
 
     using namespace std;
     using y = yy::TigerParser;
-%}
 
+    void yy::TigerLexer::lexerError(string reason, yy::location loc) {
+        cerr << "lexer error reason: " << reason << " (row: "
+            << loc.begin.line << ", column: " << loc.begin.column << ")." << endl;
+        exit(1);
+    }
+%}
 
 %option noyywrap
 %option stack
@@ -23,31 +34,29 @@ ID          [a-zA-Z_][a-zA-Z0-9_]*
 
 %%
 
-[ \t\n]                     ;
-\/\/.*\n                    ;
+[ \t]                       ;
+\n                          loc.lines();
+\/\/.*\n                    loc.lines();
 <INITIAL,COMMENT>\/\*       yy_push_state(COMMENT);
 <COMMENT>"*/"               yy_pop_state();
+<COMMENT>[ \t]              ;
+<COMMENT>[ \n]              loc.lines();
 <COMMENT>.                  ;
-<COMMENT>[ \t\n]            ;
-\"                          { yy_push_state(STR); s = ""; }
-<STR>\"                     {
-                                std::string str = s;
-                                s.clear();
-                                yy_pop_state();
-                                return y::make_STRING(str, loc);
-                            }
-<STR>\\a                    { s.append("\a"); }
-<STR>\\b                    { s.append("\b"); }
-<STR>\\f                    { s.append("\f"); }
-<STR>\\n                    { s.append("\n"); }
-<STR>\\r                    { s.append("\r"); }
-<STR>\\t                    { s.append("\t"); }
-<STR>\\v                    { s.append("\v"); }
-<STR>\\\\                   { s.append("\\"); }
-<STR>\\\'                   { s.append("\'"); }
-<STR>\\\"                   { s.append("\""); }
-<STR>\\0                    { s.append("\0"); }
-<STR>.                      { s.append(yytext); }
+\"                          { yy_push_state(STR); str_o.clear(); }
+<STR>\"                     { yy_pop_state(); return y::make_STRING(str_o.str(), loc); }
+<STR>\\a                    str_o << '\a';
+<STR>\\b                    str_o << '\b';
+<STR>\\f                    str_o << '\f';
+<STR>\\n                    str_o << '\n';
+<STR>\\r                    str_o << '\r';
+<STR>\\t                    str_o << '\t';
+<STR>\\v                    str_o << '\v';
+<STR>\\\\                   str_o << '\\';
+<STR>\\\'                   str_o << '\'';
+<STR>\\\"                   str_o << '\"';
+<STR>\\0                    str_o << '\0';
+<STR>[\t\n]                 ;
+<STR>.                      str_o << yytext;
 "while"                     { return y::make_WHILE(loc); }
 "for"                       { return y::make_FOR(loc); }
 "to"                        { return y::make_TO(loc); }
@@ -90,7 +99,7 @@ ID          [a-zA-Z_][a-zA-Z0-9_]*
 ":="                        { return y::make_ASSIGN(loc); }
 {DIGIT}+                    { return y::make_INT(atoi(yytext), loc); }
 {ID}                        { return y::make_ID(yytext, loc); }
-.                           { cerr << "lexer error (reason: bad token " << yytext << ")." << endl; exit(1); }
+.                           { lexerError("unexcepted token " + string(yytext), loc); }
 <<EOF>>                     { return y::make_EOF(loc); }
 
 %%
