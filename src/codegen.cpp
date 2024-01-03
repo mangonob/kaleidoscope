@@ -13,6 +13,10 @@
 #include "codegen.h"
 #include "absyn.h"
 #include "types.h"
+#define _String std::make_shared<ty::String>()
+#define _Int std::make_shared<ty::Int>()
+#define _Void std::make_shared<ty::Void>()
+#define _Func(n, rt, ...) std::make_shared<cg::FuncEnventry>(n, rt, std::vector<std::shared_ptr<ty::Type>>{__VA_ARGS__})
 
 using namespace cg;
 using namespace llvm;
@@ -41,16 +45,17 @@ CodeGenerator::CodeGenerator()
   namedTypes.insert("nil", make_shared<ty::Nil>());
   namedTypes.insert("void", make_shared<ty::Void>());
 
-  namedValues.insert("print", make_shared<FuncEnventry>("print", make_shared<ty::Void>(), vector<shared_ptr<ty::Type>>{make_shared<ty::String>()}));
-  namedValues.insert("flush", make_shared<FuncEnventry>("flush", make_shared<ty::Void>(), vector<shared_ptr<ty::Type>>{}));
-  namedValues.insert("getchar", make_shared<FuncEnventry>("getchar", make_shared<ty::String>(), vector<shared_ptr<ty::Type>>{}));
-  namedValues.insert("ord", make_shared<FuncEnventry>("ord", make_shared<ty::Int>(), vector<shared_ptr<ty::Type>>{make_shared<ty::String>()}));
-  namedValues.insert("chr", make_shared<FuncEnventry>("chr", make_shared<ty::String>(), vector<shared_ptr<ty::Type>>{make_shared<ty::Int>()}));
-  namedValues.insert("size", make_shared<FuncEnventry>("size", make_shared<ty::Int>(), vector<shared_ptr<ty::Type>>{make_shared<ty::String>()}));
-  namedValues.insert("substring", make_shared<FuncEnventry>("substring", make_shared<ty::String>(), vector<shared_ptr<ty::Type>>{make_shared<ty::String>(), make_shared<ty::Int>(), make_shared<ty::Int>()}));
-  namedValues.insert("concat", make_shared<FuncEnventry>("concat", make_shared<ty::String>(), vector<shared_ptr<ty::Type>>{make_shared<ty::String>(), make_shared<ty::String>()}));
-  namedValues.insert("not", make_shared<FuncEnventry>("not", make_shared<ty::Int>(), vector<shared_ptr<ty::Type>>{make_shared<ty::Int>()}));
-  namedValues.insert("exit", make_shared<FuncEnventry>("exit", make_shared<ty::Void>(), vector<shared_ptr<ty::Type>>{make_shared<ty::Int>()}));
+  namedValues.insert("print", _Func("print", _Void, _String));
+  namedValues.insert("flush", _Func("flush", _Void));
+  namedValues.insert("getchar", _Func("getchar", _String));
+  namedValues.insert("ord", _Func("ord", _Int, _String));
+  namedValues.insert("chr", _Func("chr", _String, _Int));
+  namedValues.insert("size", _Func("size", _Int, _String));
+  namedValues.insert("substring", _Func("substring", _String, _String, _Int, _Int));
+  namedValues.insert("concat", _Func("concat", _String, _String, _String));
+  namedValues.insert("not", _Func("not", _Int, _Int));
+  namedValues.insert("exit", _Func("exit", _Void, _Int));
+  namedValues.insert("string_compare", _Func("string_compare", _Int, _String, _String));
 
   for (auto iter = namedValues.top_begin(); iter != namedValues.top_end(); iter++)
   {
@@ -62,7 +67,21 @@ CodeGenerator::CodeGenerator()
   registeLibraryFunction(
       "malloc",
       [this]()
-      { return Function::Create(FunctionType::get(builder->getPtrTy(), {builder->getInt64Ty()}, false), Function::ExternalLinkage, "malloc", moduler.get()); });
+      { return Function::Create(
+            FunctionType::get(builder->getPtrTy(), {builder->getInt64Ty()}, false),
+            Function::ExternalLinkage, "malloc", moduler.get()); });
+
+  registeLibraryFunction(
+      "array_initialize",
+      [this]()
+      {
+        return Function::Create(
+            FunctionType::get(
+                builder->getVoidTy(),
+                {builder->getPtrTy(), builder->getPtrTy(), builder->getInt64Ty(), builder->getInt64Ty()},
+                false),
+            Function::ExternalLinkage, "array_initialize", moduler.get());
+      });
 }
 
 void CodeGenerator::registeLibraryFunction(std::string name, std::function<llvm::Function *()> factory)
@@ -178,7 +197,7 @@ TyValue CodeGenerator::visit(Call &call)
   if (!f_enventry)
     fatalError(call.func->id + " is not a function", call.func->pos);
 
-  auto func = requestFunction(call.func->id);
+  auto func = requestFunction(f_enventry->name);
   assert(func);
 
   if (call.args.size() != f_enventry->args.size())
@@ -212,6 +231,34 @@ TyValue CodeGenerator::visit(Call &call)
   else
   {
     return mkVoid();
+  }
+}
+
+static CmpInst::Predicate op2icmp(Oper op)
+{
+  switch (op)
+  {
+  case Oper::eqOp:
+    return CmpInst::ICMP_EQ;
+    break;
+  case Oper::neqOp:
+    return CmpInst::ICMP_NE;
+    break;
+  case Oper::ltOp:
+    return CmpInst::ICMP_SLT;
+    break;
+  case Oper::leOp:
+    return CmpInst::ICMP_SLE;
+    break;
+  case Oper::gtOp:
+    return CmpInst::ICMP_SGT;
+    break;
+  case Oper::geOp:
+    return CmpInst::ICMP_SGE;
+    break;
+  default:
+    return CmpInst::BAD_ICMP_PREDICATE;
+    break;
   }
 }
 
@@ -257,10 +304,60 @@ TyValue CodeGenerator::visit(BinOp &bin)
   else
   {
     assert(isRelOp(bin.op));
-    // TODO
+    auto LHS = bin.lhs->accept(*this);
+    if (match(*LHS.type, ty::String()))
+    {
+      auto RHS = bin.rhs->accept(*this);
+      if (match(*RHS.type, ty::String()))
+      {
+        auto func = requestFunction("string_compare");
+        auto cmp = builder->CreateCall(func, {LHS.value, RHS.value});
+        return TyValue(make_shared<ty::Int>(), builder->CreateICmp(op2icmp(bin.op), cmp, builder->getInt64(0)));
+      }
+      else
+      {
+        // "textcontent compare to other type" >= 42
+        fatalError("unmatched type", bin.rhs->pos);
+      }
+    }
+    else if (match(*LHS.type, ty::Int()))
+    {
+      auto RHS = bin.rhs->accept(*this);
+      if (match(*RHS.type, ty::Int()))
+      {
+        return TyValue(make_shared<ty::Int>(), builder->CreateICmp(op2icmp(bin.op), LHS.value, RHS.value));
+      }
+      else
+      {
+        fatalError("unmatched type", bin.rhs->pos);
+      }
+    }
+    else if (dynamic_cast<const ty::Array *>(actualTy(LHS.type.get())) || dynamic_cast<const ty::Record *>(actualTy(LHS.type.get())))
+    {
+      if (bin.op == Oper::eqOp || bin.op == Oper::neqOp)
+      {
+        auto RHS = bin.rhs->accept(*this);
+        if (match(*LHS.type, *RHS.type))
+        {
+          auto li = builder->CreatePtrToInt(LHS.value, builder->getInt64Ty());
+          auto ri = builder->CreatePtrToInt(RHS.value, builder->getInt64Ty());
+          return TyValue(make_shared<ty::Int>(), builder->CreateICmp(op2icmp(bin.op), li, ri));
+        }
+        else
+        {
+          fatalError("unmatched type", bin.rhs->pos);
+        }
+      }
+      else
+      {
+        fatalError("bad operator for reference type", bin.pos);
+      }
+    }
+    else
+    {
+      fatalError("bad type to compare", bin.lhs->pos);
+    }
   }
-
-  return TyValue();
 }
 
 TyValue CodeGenerator::visit(RecordExp &record)
@@ -315,26 +412,27 @@ TyValue CodeGenerator::visit(Array &array)
   if (!array_ty)
     fatalError("type " + array.type_id->id + " is not a array type", array.pos);
 
-  auto capacity = array.capacity->accept(*this);
-  if (mismatch(*capacity.type, ty::Int()))
+  auto CAPACITY = array.capacity->accept(*this);
+  if (mismatch(*CAPACITY.type, ty::Int()))
     fatalError("capacity of array must be int type", array.capacity->pos);
 
-  auto element = array.element->accept(*this);
-  if (mismatch(*array_ty->type, *element.type))
+  auto ELEMENT = array.element->accept(*this);
+  if (mismatch(*array_ty->type, *ELEMENT.type))
     fatalError("type of element is not matched", array.element->pos);
 
   auto elem_ir_ty = type2IRType(array_ty->type);
   auto sz = moduler->getDataLayout().getTypeAllocSize(elem_ir_ty);
   auto array_size = builder->CreateMul(
       builder->CreateTypeSize(builder->getInt64Ty(), sz),
-      capacity.value);
+      CAPACITY.value);
 
   auto _malloc = requestFunction("malloc");
   assert(_malloc);
   auto array_ref = builder->CreateCall(_malloc, {array_size});
-
-  // TODO initial array elements
-
+  auto _array_initialize = requestFunction("array_initialize");
+  auto e_ptr = builder->CreateAlloca(elem_ir_ty);
+  builder->CreateStore(ELEMENT.value, e_ptr);
+  builder->CreateCall(_array_initialize, {array_ref, e_ptr, CAPACITY.value, builder->CreateTypeSize(builder->getInt64Ty(), sz)});
   return TyValue(make_shared<ty::Array>(*array_ty), array_ref);
 }
 
