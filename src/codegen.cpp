@@ -878,12 +878,14 @@ TyValue CodeGenerator::visit(FunctionDec &funcDec)
   beginScope();
   assert(func->arg_size() == f_enventry->args.size());
   auto arg_iter = f_enventry->args.begin();
+  auto field_iter = funcDec.parameters.begin();
   for (auto &arg : func->args())
   {
     auto alloca = builder->CreateAlloca(arg.getType(), nullptr, arg.getName());
     builder->CreateStore(&arg, alloca);
-    namedValues.insert(f_enventry->name, make_shared<VarEnventry>(*arg_iter, alloca));
+    namedValues.insert((*field_iter)->name->id, make_shared<VarEnventry>(*arg_iter, alloca));
     arg_iter++;
+    field_iter++;
   }
   auto body = funcDec.body->accept(*this);
   endScope();
