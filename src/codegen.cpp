@@ -312,7 +312,8 @@ TyValue CodeGenerator::visit(BinOp &bin)
       {
         auto func = requestFunction("string_compare");
         auto cmp = builder->CreateCall(func, {LHS.value, RHS.value});
-        return TyValue(make_shared<ty::Int>(), builder->CreateICmp(op2icmp(bin.op), cmp, builder->getInt64(0)));
+        auto b = builder->CreateICmp(op2icmp(bin.op), cmp, builder->getInt64(0));
+        return TyValue(make_shared<ty::Int>(), builder->CreateIntCast(b, builder->getInt64Ty(), false));
       }
       else
       {
@@ -325,7 +326,8 @@ TyValue CodeGenerator::visit(BinOp &bin)
       auto RHS = bin.rhs->accept(*this);
       if (match(*RHS.type, ty::Int()))
       {
-        return TyValue(make_shared<ty::Int>(), builder->CreateICmp(op2icmp(bin.op), LHS.value, RHS.value));
+        auto b = builder->CreateICmp(op2icmp(bin.op), LHS.value, RHS.value);
+        return TyValue(make_shared<ty::Int>(), builder->CreateIntCast(b, builder->getInt64Ty(), false));
       }
       else
       {
@@ -341,7 +343,8 @@ TyValue CodeGenerator::visit(BinOp &bin)
         {
           auto li = builder->CreatePtrToInt(LHS.value, builder->getInt64Ty());
           auto ri = builder->CreatePtrToInt(RHS.value, builder->getInt64Ty());
-          return TyValue(make_shared<ty::Int>(), builder->CreateICmp(op2icmp(bin.op), li, ri));
+          auto b = builder->CreateICmp(op2icmp(bin.op), li, ri);
+          return TyValue(make_shared<ty::Int>(), builder->CreateIntCast(b, builder->getInt64Ty(), false));
         }
         else
         {
@@ -446,15 +449,14 @@ TyValue CodeGenerator::visit(If &iff)
   if (ty::mismatch(*COND.type, ty::Int()))
     fatalError("if condition must be int type", iff.condition->pos);
 
-  auto cond = builder->CreateICmpNE(COND.value, builder->getInt64(0), "cond");
   auto func = builder->GetInsertBlock()->getParent();
-  auto thenB = BasicBlock::Create(*context, newLabel(), func);
+  auto thenB = BasicBlock::Create(*context, newLabel("then"), func);
 
   if (iff.els)
   {
-    auto elseB = BasicBlock::Create(*context, newLabel());
-    auto mergeB = BasicBlock::Create(*context, newLabel());
-    builder->CreateCondBr(cond, thenB, elseB);
+    auto elseB = BasicBlock::Create(*context, newLabel("else"));
+    auto mergeB = BasicBlock::Create(*context, newLabel("merge"));
+    builder->CreateCondBr(COND.value, thenB, elseB);
 
     builder->SetInsertPoint(thenB);
     auto THEN = iff.then->accept(*this);
@@ -473,7 +475,7 @@ TyValue CodeGenerator::visit(If &iff)
 
     func->insert(func->end(), mergeB);
     builder->SetInsertPoint(mergeB);
-    auto phi = builder->CreatePHI(builder->getInt64Ty(), 2);
+    auto phi = builder->CreatePHI(type2IRType(THEN.type.get()), 2);
     phi->addIncoming(THEN.value, thenB);
     phi->addIncoming(ELSE.value, elseB);
     // TODO check type
@@ -482,7 +484,7 @@ TyValue CodeGenerator::visit(If &iff)
   else
   {
     auto mergeB = BasicBlock::Create(*context, newLabel());
-    builder->CreateCondBr(cond, thenB, mergeB);
+    builder->CreateCondBr(COND.value, thenB, mergeB);
 
     builder->SetInsertPoint(thenB);
     auto THEN = iff.then->accept(*this);
