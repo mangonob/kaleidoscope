@@ -76,6 +76,7 @@ namespace cg
   {
     int label_id = 0;
     int func_id = 0;
+    int unique_id = 0;
 
   public:
     virtual TyValue visit(absyn::Nil &n) override;

@@ -1,7 +1,5 @@
 let
-  type custom = { a: int, b: string }
-  type stringArray = array of string
-  var a: stringArray := stringArray [2000001] of ""
+  var i := 0
 in
-  a[100001]
+   while 1 do i := i*10
 end

@@ -37,7 +37,7 @@ CodeGenerator::CodeGenerator()
 
   auto mainFuncType = FunctionType::get(llvm::Type::getVoidTy(*context), false);
   auto mainFunc = Function::Create(mainFuncType, GlobalValue::LinkageTypes::ExternalLinkage, "main", this->moduler.get());
-  auto entry = BasicBlock::Create(*context, "", mainFunc);
+  auto entry = BasicBlock::Create(*context, "entry", mainFunc);
   builder->SetInsertPoint(entry);
 
   namedTypes.insert("int", make_shared<ty::Int>());
@@ -450,13 +450,15 @@ TyValue CodeGenerator::visit(If &iff)
     fatalError("if condition must be int type", iff.condition->pos);
 
   auto func = builder->GetInsertBlock()->getParent();
-  auto thenB = BasicBlock::Create(*context, newLabel("then"), func);
+  auto uid = to_string(unique_id++);
+  auto thenB = BasicBlock::Create(*context, newLabel("then" + uid), func);
+  auto cond = builder->CreateIntCast(COND.value, builder->getInt1Ty(), false);
 
   if (iff.els)
   {
-    auto elseB = BasicBlock::Create(*context, newLabel("else"));
-    auto mergeB = BasicBlock::Create(*context, newLabel("merge"));
-    builder->CreateCondBr(COND.value, thenB, elseB);
+    auto elseB = BasicBlock::Create(*context, newLabel("else" + uid));
+    auto mergeB = BasicBlock::Create(*context, newLabel("merge" + uid));
+    builder->CreateCondBr(cond, thenB, elseB);
 
     builder->SetInsertPoint(thenB);
     auto THEN = iff.then->accept(*this);
@@ -475,16 +477,27 @@ TyValue CodeGenerator::visit(If &iff)
 
     func->insert(func->end(), mergeB);
     builder->SetInsertPoint(mergeB);
-    auto phi = builder->CreatePHI(type2IRType(THEN.type.get()), 2);
-    phi->addIncoming(THEN.value, thenB);
-    phi->addIncoming(ELSE.value, elseB);
-    // TODO check type
-    return TyValue(THEN.type, phi);
+
+    if (match(*THEN.type, ty::Void()) && match(*ELSE.type, ty::Void()))
+    {
+      return mkVoid();
+    }
+    else if (match(*THEN.type, *ELSE.type))
+    {
+      auto phi = builder->CreatePHI(type2IRType(THEN.type.get()), 2);
+      phi->addIncoming(THEN.value, thenB);
+      phi->addIncoming(ELSE.value, elseB);
+      return TyValue(THEN.type, phi);
+    }
+    else
+    {
+      fatalError("if else, then must have same type or both emit empty value", iff.pos);
+    }
   }
   else
   {
     auto mergeB = BasicBlock::Create(*context, newLabel());
-    builder->CreateCondBr(COND.value, thenB, mergeB);
+    builder->CreateCondBr(cond, thenB, mergeB);
 
     builder->SetInsertPoint(thenB);
     auto THEN = iff.then->accept(*this);
@@ -502,11 +515,11 @@ TyValue CodeGenerator::visit(If &iff)
 TyValue CodeGenerator::visit(While &whil)
 {
   auto func = builder->GetInsertBlock()->getParent();
-  auto loopB = BasicBlock::Create(*context, newLabel(), func);
+  auto loopB = BasicBlock::Create(*context, newLabel("whil"), func);
   builder->CreateBr(loopB);
   builder->SetInsertPoint(loopB);
-  auto bodyB = BasicBlock::Create(*context, newLabel());
-  auto endB = BasicBlock::Create(*context, newLabel());
+  auto bodyB = BasicBlock::Create(*context, newLabel("body"));
+  auto endB = BasicBlock::Create(*context, newLabel("end"));
   auto COND = whil.condition->accept(*this);
 
   if (!COND.value)
@@ -514,12 +527,14 @@ TyValue CodeGenerator::visit(While &whil)
   if (ty::mismatch(*COND.type, ty::Int()))
     fatalError("while condition must be int type", whil.condition->pos);
 
-  builder->CreateCondBr(COND.value, bodyB, endB);
+  auto cond = builder->CreateIntCast(COND.value, builder->getInt1Ty(), false);
+  builder->CreateCondBr(cond, bodyB, endB);
   func->insert(func->end(), bodyB);
   builder->SetInsertPoint(bodyB);
   breaks.push_back(endB);
   whil.body->accept(*this);
   breaks.pop_back();
+  builder->CreateBr(loopB);
   func->insert(func->end(), endB);
   builder->SetInsertPoint(endB);
   return mkVoid();
@@ -872,7 +887,7 @@ TyValue CodeGenerator::visit(FunctionDec &funcDec)
   assert(f_enventry && "declare is not a function");
   Function *func = moduler->getFunction(f_enventry->name);
   assert(func && "function not found in ir");
-  auto func_entry = BasicBlock::Create(*context, "", func);
+  auto func_entry = BasicBlock::Create(*context, "entry", func);
   auto saved = builder->GetInsertBlock();
   builder->SetInsertPoint(func_entry);
   beginScope();
@@ -900,15 +915,28 @@ TyValue CodeGenerator::visit(FunctionDec &funcDec)
       fatalError("function " + funcDec.funcname->id + " mismatch return type", funcDec.body->pos);
     }
   }
+  else
+  {
+    builder->CreateRetVoid();
+  }
   builder->SetInsertPoint(saved);
   return TyValue();
 }
 
 string CodeGenerator::newLabel(string topic)
 {
-  ostringstream o;
-  o << "L" << this->label_id++;
-  return topic.empty() ? o.str() : o.str() + "_" + topic;
+  for (auto iter = topic.begin(); iter != topic.end(); iter++)
+  {
+    if (iter == topic.begin())
+    {
+      *iter = tolower(*iter);
+    }
+    else
+    {
+      *iter = toupper(*iter);
+    }
+  }
+  return "L" + to_string(label_id++) + topic;
 }
 
 void CodeGenerator::optimize()
