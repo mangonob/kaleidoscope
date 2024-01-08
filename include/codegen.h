@@ -101,7 +101,7 @@ namespace cg
     virtual TyValue visit(absyn::VarDec &varDec) override;
     virtual TyValue visit(absyn::FunctionDec &funcDec) override;
 
-    void optimize();
+    void generate(absyn::Exp &exp);
 
     CodeGenerator();
 
@@ -114,6 +114,12 @@ namespace cg
     tb::Table<std::string, std::shared_ptr<Enventry>> namedValues;
     tb::Table<std::string, std::shared_ptr<ty::Type>> namedTypes;
     std::vector<llvm::BasicBlock *> breaks;
+
+    void optimize();
+    void beginScope();
+    void endScope();
+    void reportError(std::string error, absyn::position pos);
+    [[noreturn]] void fatalError(std::string error, absyn::position pos);
 
   public:
     std::unique_ptr<llvm::Module> moduler;
@@ -129,11 +135,5 @@ namespace cg
     llvm::Function *createFunction(FuncEnventry &func);
     llvm::Function *requestFunction(std::string funcname);
     void registeLibraryFunction(std::string name, std::function<llvm::Function *()> factory);
-
-  protected:
-    void beginScope();
-    void endScope();
-    void reportError(std::string error, absyn::position pos);
-    [[noreturn]] void fatalError(std::string error, absyn::position pos);
   };
 }

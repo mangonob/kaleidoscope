@@ -4,6 +4,7 @@ project(Kaleidoscope)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+SET(CMAKE_OSX_DEPLOYMENT_TARGET 13.0)
 
 set(SRC ${CMAKE_SOURCE_DIR}/src)
 set(INCLUDE ${CMAKE_SOURCE_DIR}/include)
@@ -26,6 +27,8 @@ add_executable(kalec ${SOURCE_FILES}
   ${SRC}/parser.tab.cpp
   ${SRC}/lexer.yy.cc
 )
+
+add_library(runtime STATIC lib/runtime.c)
 
 install(TARGETS kalec DESTINATION bin)
 

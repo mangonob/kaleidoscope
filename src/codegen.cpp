@@ -9,6 +9,10 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
 #include <llvm/TargetParser/Host.h>
+#include <llvm/MC/TargetRegistry.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/FileSystem.h>
+#include <llvm/Support/CodeGen.h>
 #include <memory>
 #include <sstream>
 #include <map>
@@ -52,9 +56,8 @@ CodeGenerator::CodeGenerator()
   InitializeAllTargetInfos();
   InitializeAllTargets();
   InitializeAllTargetMCs();
-  // InitializeAllAsmParsers();
+  InitializeAllAsmParsers();
   InitializeAllAsmPrinters();
-  auto target_triple = sys::getDefaultTargetTriple();
 
   namedValues.insert("print", _Func("print", _Void, _String));
   namedValues.insert("flush", _Func("flush", _Void));
@@ -958,6 +961,47 @@ void CodeGenerator::optimize()
   }
 }
 
+void CodeGenerator::generate(absyn::Exp &exp)
+{
+  auto target_triple = sys::getDefaultTargetTriple();
+  string error;
+  auto target = TargetRegistry::lookupTarget(target_triple, error);
+  if (!target)
+  {
+    errs() << error;
+    exit(1);
+  }
+  auto cpu = "generic";
+  auto features = "";
+  TargetOptions opt;
+  auto target_machine = target->createTargetMachine(target_triple, cpu, features, opt, Reloc::PIC_);
+  moduler->setDataLayout(target_machine->createDataLayout());
+  moduler->setTargetTriple(target_triple);
+
+  exp.accept(*this);
+  builder->CreateRetVoid();
+  optimize();
+
+  auto filename = "main.o";
+  error_code error_code;
+  auto dest = raw_fd_ostream(filename, error_code, sys::fs::OF_None);
+  if (error_code)
+  {
+    errs() << "could not open file " << filename << "\n";
+    exit(1);
+  }
+
+  legacy::PassManager pass;
+  auto file_type = CodeGenFileType::CGFT_ObjectFile;
+  if (target_machine->addPassesToEmitFile(pass, dest, nullptr, file_type))
+  {
+    errs() << "target machine can not emit file of this type.\n";
+    exit(1);
+  }
+  pass.run(*moduler);
+  dest.flush();
+}
+
 TyValue CodeGenerator::mkVoid()
 {
   return TyValue(make_shared<ty::Void>(), UndefValue::get(builder->getVoidTy()));
@@ -977,8 +1021,8 @@ void CodeGenerator::endScope()
 
 void CodeGenerator::reportError(std::string error, absyn::position pos)
 {
-  std::cerr << error << " (row: " << pos.line
-            << ", column: " << pos.column << ")." << endl;
+  errs() << error << " (row: " << pos.line
+         << ", column: " << pos.column << ").\n";
 }
 
 void CodeGenerator::fatalError(std::string error, absyn::position pos)

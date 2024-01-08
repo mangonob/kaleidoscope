@@ -20,10 +20,7 @@ int main(int argc, char *argv[])
   if (y.parse() == 0)
   {
     cg::CodeGenerator generator;
-    auto ret = exp->accept(generator);
-    generator.builder->CreateRetVoid();
-    generator.optimize();
-    generator.moduler->print(llvm::outs(), nullptr);
+    generator.generate(*exp);
   }
 
   exit(0);
