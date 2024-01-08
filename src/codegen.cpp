@@ -5,6 +5,10 @@
 #include <llvm/Pass.h>
 #include <llvm/Analysis/LoopAnalysisManager.h>
 #include <llvm/Transforms/Utils.h>
+#include <llvm/Support/TargetSelect.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Target/TargetOptions.h>
+#include <llvm/TargetParser/Host.h>
 #include <memory>
 #include <sstream>
 #include <map>
@@ -44,6 +48,13 @@ CodeGenerator::CodeGenerator()
   namedTypes.insert("string", make_shared<ty::String>());
   namedTypes.insert("nil", make_shared<ty::Nil>());
   namedTypes.insert("void", make_shared<ty::Void>());
+
+  InitializeAllTargetInfos();
+  InitializeAllTargets();
+  InitializeAllTargetMCs();
+  // InitializeAllAsmParsers();
+  InitializeAllAsmPrinters();
+  auto target_triple = sys::getDefaultTargetTriple();
 
   namedValues.insert("print", _Func("print", _Void, _String));
   namedValues.insert("flush", _Func("flush", _Void));

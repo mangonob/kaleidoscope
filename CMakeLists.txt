@@ -10,7 +10,7 @@ set(INCLUDE ${CMAKE_SOURCE_DIR}/include)
 
 file(GLOB SOURCE_FILES ${SRC}/*.cpp)
 
-find_package(LLVM REQUIRED CONFIG)
+find_package(LLVM 17.0.4 CONFIG)
 
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
@@ -22,8 +22,6 @@ add_definitions(${LLVM_DEFINITIONS_LIST})
 llvm_map_components_to_libnames(llvm_libs support core irreader analysis native)
 message(STATUS "Components mapped to libnames: ${llvm_libs}")
 
-find_package(nlohmann_json REQUIRED)
-
 add_executable(kalec ${SOURCE_FILES}
   ${SRC}/parser.tab.cpp
   ${SRC}/lexer.yy.cc
@@ -33,10 +31,20 @@ install(TARGETS kalec DESTINATION bin)
 
 target_include_directories(kalec PUBLIC ${INCLUDE})
 
+set(asm_parser_ignore NVPTX XCore)
+foreach(target ${LLVM_TARGETS_TO_BUILD})
+  list(APPEND targets "LLVM${target}CodeGen")
+  if (NOT ${target} IN_LIST asm_parser_ignore)
+    list(APPEND targets "LLVM${target}AsmParser")
+  endif()
+endforeach()
+
+message(STATUS "Targets: ${targets}")
+
 # Link against LLVM libraries
 target_link_libraries(kalec PRIVATE
   ${llvm_libs}
-  nlohmann_json::nlohmann_json
+  ${targets}
 )
 
 exec_program(brew ARGS --prefix bison OUTPUT_VARIABLE BISON)
