@@ -4,14 +4,13 @@ project(Kaleidoscope)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
-SET(CMAKE_OSX_DEPLOYMENT_TARGET 13.0)
 
 set(SRC ${CMAKE_SOURCE_DIR}/src)
 set(INCLUDE ${CMAKE_SOURCE_DIR}/include)
 
 file(GLOB SOURCE_FILES ${SRC}/*.cpp)
 
-find_package(LLVM 17.0.4 CONFIG)
+find_package(LLVM REQUIRED CONFIG)
 
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
