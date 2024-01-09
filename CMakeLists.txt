@@ -12,6 +12,14 @@ file(GLOB SOURCE_FILES ${SRC}/*.cpp)
 
 find_package(LLVM REQUIRED CONFIG)
 
+# fetch latest argparse
+include(FetchContent)
+FetchContent_Declare(
+    argparse
+    GIT_REPOSITORY https://github.com/p-ranav/argparse.git
+)
+FetchContent_MakeAvailable(argparse)
+
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
@@ -47,6 +55,7 @@ message(STATUS "Targets: ${targets}")
 target_link_libraries(kalec PRIVATE
   ${llvm_libs}
   ${targets}
+  argparse
 )
 
 exec_program(brew ARGS --prefix bison OUTPUT_VARIABLE BISON)
