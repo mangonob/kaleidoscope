@@ -58,7 +58,7 @@ target_link_libraries(kalec PRIVATE
   argparse
 )
 
-exec_program(brew ARGS --prefix bison OUTPUT_VARIABLE BISON)
+execute_process(COMMAND brew --prefix bison OUTPUT_VARIABLE BISON OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 add_custom_command(
   OUTPUT ${SRC}/parser.tab.cpp ${INCLUDE}/parser.tab.hpp ${INCLUDE}/location.hh
